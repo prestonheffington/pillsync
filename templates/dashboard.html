@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - PillSync</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background-color: #1e3a5f;
+            font-family: 'Work Sans', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+            padding: 30px;
+        }
+        
+        .top-border, .bottom-border {
+            position: fixed;
+            width: 100%;
+            height: 8px;
+            background-color: #ff6a00;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+        
+        .top-border { top: 0; }
+        .bottom-border { bottom: 0; }
+        
+        .header {
+            position: fixed;
+            top: 15px;
+            left: 20px;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(15px);
+            border-radius: 12px;
+            padding: 25px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        h2, h3 {
+            color: white;
+            margin-bottom: 15px;
+        }
+        
+        .med-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .med-list li {
+            background: rgba(255, 255, 255, 0.2);
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            transition: transform 0.2s ease-in-out;
+        }
+        
+        .med-list li:hover {
+            transform: scale(1.05);
+        }
+        
+        .link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #ff6a00;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 18px;
+            transition: color 0.3s ease-in-out;
+        }
+        
+        .link:hover {
+            color: #ffa94d;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-border"></div>
+    <div class="header">PillSync</div>
+    <div class="glass-panel">
+        <h2>Welcome back, <span id="username">User</span></h2>
+        <h3>Upcoming Medications</h3>
+        <ul class="med-list" id="medications">
+            <!-- Medication list will be populated dynamically -->
+        </ul>
+        <a href="/prescriptions" class="link">View Prescriptions</a>
+    </div>
+    <div class="bottom-border"></div>
+</body>
+</html>

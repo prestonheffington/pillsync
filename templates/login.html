@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Work Sans', sans-serif;
+            background-color: #1E3A5F; /* Light navy */
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            width: 100vw;
+            text-align: center;
+        }
+
+        .border {
+            width: 100%;
+            height: 5vh; /* Responsive border height */
+            background-color: #FF7F00;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            position: absolute;
+            left: 0;
+        }
+
+        .top-border {
+            top: 0;
+            justify-content: flex-start; /* Aligns "PillSync" to the left */
+        }
+
+        .bottom-border {
+            bottom: 0;
+        }
+
+        .pillsync-text {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin: 20px 0;
+        }
+
+        .container {
+            background: white;
+            padding: 5%;
+            border-radius: 8px;
+            border: 2px solid #FF7F00;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #FF7F00;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        button {
+            background-color: #FF7F00;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 100%;
+            border-radius: 4px;
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.5rem;
+            }
+            .container {
+                width: 90%;
+            }
+            input, button {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="border top-border">
+        <span class="pillsync-text">PillSync</span>
+    </div>
+
+    <h1>Welcome back!</h1>
+
+    <div class="container">
+        <form method="POST" action="/">
+            <input type="text" name="username" placeholder="Username" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+
+    <div class="border bottom-border"></div>
+
+</body>
+</html>
