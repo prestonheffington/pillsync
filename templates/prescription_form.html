@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prescription Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1E3A5F;
+            color: white;
+            text-align: center;
+        }
+        form {
+            background: white;
+            color: black;
+            padding: 20px;
+            border-radius: 8px;
+            display: inline-block;
+            margin-top: 20px;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+        }
+        button {
+            background-color: #FF7F00;
+            color: white;
+            padding: 10px;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Manage Prescriptions</h1>
+
+    <form action="/add_prescription" method="POST">
+        <input type="text" name="name" placeholder="Prescription Name" required>
+        <input type="number" name="amount" placeholder="Amount (in days)" required>
+        <input type="text" name="frequency" placeholder="Frequency (e.g., Daily, Twice a day)" required>
+        <input type="date" name="refill_date" required>
+        <input type="text" name="dosage" placeholder="Dosage (e.g., 100mg)">
+        <input type="text" name="time_of_day" placeholder="Time of Day (e.g., Morning)">
+        <button type="submit">Add Prescription</button>
+    </form>
+
+</body>
+</html>

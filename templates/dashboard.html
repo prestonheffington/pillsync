@@ -6,15 +6,15 @@
     <title>Dashboard - PillSync</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600&display=swap');
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            background-color: #1e3a5f;
+            background-color: #1E3A5F;
             font-family: 'Work Sans', sans-serif;
             display: flex;
             flex-direction: column;
@@ -24,7 +24,7 @@
             text-align: center;
             padding: 30px;
         }
-        
+
         .top-border, .bottom-border {
             position: fixed;
             width: 100%;
@@ -32,10 +32,10 @@
             background-color: #ff6a00;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
         }
-        
+
         .top-border { top: 0; }
         .bottom-border { bottom: 0; }
-        
+
         .header {
             position: fixed;
             top: 15px;
@@ -44,7 +44,7 @@
             font-size: 24px;
             font-weight: bold;
         }
-        
+
         .glass-panel {
             background: rgba(255, 255, 255, 0.15);
             backdrop-filter: blur(15px);
@@ -54,18 +54,23 @@
             max-width: 600px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
             border: 1px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
         }
-        
+
         h2, h3 {
             color: white;
             margin-bottom: 15px;
         }
-        
+
         .med-list {
             list-style: none;
             padding: 0;
+            margin-bottom: 20px;
         }
-        
+
         .med-list li {
             background: rgba(255, 255, 255, 0.2);
             margin: 10px 0;
@@ -75,37 +80,132 @@
             font-weight: 500;
             transition: transform 0.2s ease-in-out;
         }
-        
+
         .med-list li:hover {
             transform: scale(1.05);
         }
-        
-        .link {
-            display: inline-block;
+
+        /* Centered row of equal-size buttons */
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            width: 100%;
             margin-top: 20px;
-            color: #ff6a00;
-            text-decoration: none;
-            font-weight: bold;
-            font-size: 18px;
-            transition: color 0.3s ease-in-out;
         }
-        
-        .link:hover {
-            color: #ffa94d;
+
+        .action-button {
+            background-color: #FF7F00;
+            color: white;
+            padding: 15px;
+            border: none;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 16px;
+            flex: 1;
+            min-width: 150px;
+            max-width: 200px;
+            height: 50px;
+            transition: background-color 0.3s ease-in-out, transform 0.2s ease-in-out;
+            text-align: center;
         }
+
+        .action-button:hover {
+            background-color: #ff9a33;
+            transform: scale(1.05);
+        }
+
+        /* Green dispense button */
+        .dispense-button {
+            background-color: #28A745;
+        }
+
+        .dispense-button:hover {
+            background-color: #218838;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 500px) {
+            .button-container {
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .action-button {
+                width: 100%;
+                max-width: none;
+            }
+        }
+
     </style>
 </head>
 <body>
     <div class="top-border"></div>
     <div class="header">PillSync</div>
+
     <div class="glass-panel">
-        <h2>Welcome back, <span id="username">User</span></h2>
+        <h2>Welcome back, <span id="username">{{ user_name }}</span></h2>
+        
         <h3>Upcoming Medications</h3>
-        <ul class="med-list" id="medications">
-            <!-- Medication list will be populated dynamically -->
+        <ul class="med-list">
+            {% if prescriptions %}
+                {% for prescription in prescriptions %}
+                    <li>{{ prescription.name }} - {{ prescription.dosage }} ({{ prescription.time_of_day }})</li>
+                {% endfor %}
+            {% else %}
+                <li>No upcoming medications</li>
+            {% endif %}
         </ul>
-        <a href="/prescriptions" class="link">View Prescriptions</a>
+        
+
+        <!-- Button Row -->
+        <div class="button-container">
+            <a href="/prescriptions">
+                <button class="action-button">View Prescriptions</button>
+            </a>
+            <a href="/prescription_form">
+                <button class="action-button">Add Prescription</button>
+            </a>
+            <button class="action-button dispense-button" onclick="dispenseMedication()">Dispense Medication</button>
+        </div>
     </div>
+
     <div class="bottom-border"></div>
+
+    <!-- Logout Button -->
+    <button onclick="window.location.href='/logout'" style="position: absolute; top: 10px; right: 10px; padding: 10px; background-color: red; color: white; border: none; cursor: pointer;">
+        Logout
+    </button>
+
+    <script>
+        function dispenseMedication() {
+            fetch('/dispense', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert("Medication dispensed successfully!");
+                } else {
+                    alert("Error dispensing medication.");
+                }
+            });
+        }
+
+        let timeout;
+
+        function resetTimer() {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                window.location.href = "/logout";  // Redirect to logout after inactivity
+            }, 900000);  // 900000 ms = 15 minutes
+        }
+
+        // Detect user activity
+        window.onload = resetTimer;
+        document.onmousemove = resetTimer;
+        document.onkeypress = resetTimer;
+        document.onclick = resetTimer;
+        document.onscroll = resetTimer;
+    </script>
 </body>
 </html>
