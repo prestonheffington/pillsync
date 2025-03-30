@@ -1,111 +1,137 @@
-# PillSync Project
+# 💊 PillSync
 
-## Project Overview
-PillSync is a Raspberry Pi-based local server designed for medication scheduling and dispensing. The system allows users to create, store, and manage medication schedules through a web-based UI. The Flask server acts as the central hub, handling authentication, scheduling, and peripheral control (e.g., stepper motor for dispensing and fingerprint verification for authentication).
-
-## Repository Structure
-```
-PillSync/
-│-- app.py                # Main Flask application
-│-- requirements.txt      # Dependencies for the project
-│-- config.json           # Stores user credentials (temporary solution)
-│-- database/
-│   ├── pillsync.db       # SQLite database storing user & prescription data
-│-- templates/
-│   ├── index.html        # Main UI page
-│   ├── login.html        # Login page
-│-- static/
-│   ├── style.css         # CSS for UI design
-│-- functions/
-│   ├── LEDtest.py        # Test function for LED control
-│   ├── dispense.py       # Medication dispensing logic
-│-- data/
-│   ├── user_data.json    # User and prescription data (if applicable)
-│-- scripts/
-│   ├── setup.sh          # Script for initial setup
-│-- README.md             # Project documentation
-```
-
-## Installation & Setup
-1. **Clone the Repository**
-   ```bash
-   git clone https://github.com/your-repo/pillsync.git
-   cd pillsync
-   ```
-
-2. **Install Dependencies**
-   ```bash
-   pip3 install -r requirements.txt
-   ```
-
-3. **Run the Flask Server**
-   ```bash
-   python3 app.py
-   ```
-   Access the UI by entering `http://pillsync.local` in a web browser.
-
-## Database Information
-- The SQLite database (`pillsync.db`) stores:
-  - **User Data:** Name, User ID (auto-generated), Fingerprint data, Birthdate
-  - **Prescription Data:** Name, Amount (in days), Frequency, Refill Date
-- Future enhancements include secure authentication and multi-user support.
-
-## Development Guidelines
-- Maintain the existing directory structure.
-- Store new features in appropriately named files within the `functions/` or `templates/` directories.
-- Ensure all dependencies are added to `requirements.txt`.
-- Document major changes in the `README.md` or a dedicated `CHANGELOG.md`.
-- Code should follow Python best practices and be well-commented for team collaboration.
-
-## Future Development
-- Implement persistent login functionality.
-- Improve UI design and accessibility.
-- Integrate notifications and alerts.
-- Expand peripheral device integration.
-
-For any questions, please coordinate via the project's communication channel.
+PillSync is a web-based smart medication management system designed to run on a Raspberry Pi. It provides a user-friendly interface to schedule, dispense, and track medication doses while integrating with hardware peripherals like LEDs, buzzers, and fingerprint sensors.
 
 ---
-**Maintainers:** PillSync Development Team
 
-Project PillSync - Medication Scheduling Web Interface
+## 🚀 Features
 
-Description:
-This project is a web-based local server UI prototype designed to help manage medication schedules.
-It allows users to input prescription details, view schedules, and track when medication refills are needed based on a 30-day supply.
+- Secure login system with credential setup on first use
+- Session-based authentication with auto logout
+- Dashboard with:
+  - Dynamic welcome message
+  - Upcoming medication list
+  - Manual dispense button
+- Prescription management:
+  - Add, view, and delete prescriptions
+  - Time-based scheduling support with dosage and refill tracking
+- Simulated peripheral control (LEDs, buzzers, stepper motors)
+- Background alert system for scheduled medication notifications
+- Styled responsive interface with glass UI and background image
 
-Features:
-- View existing medication schedules.
-- Add new medication details and set start dates.
-- Calculate refill date based on a 30-day supply.
-- User-friendly UI accessible via 'pillsync.local' on local network.
+---
 
-Requirements:
-- Raspberry Pi (or other Linux-based system)
-- Flask (Python web framework)
-- Python 3
-- Network access to reach 'pillsync.local'
+## 📁 Project Structure
 
-Installation:
-1. Install Python 3 and pip (if not already installed).
-2. Install Flask via `sudo apt install python3-flask` or `pip3 install flask`.
-3. Clone or download this repository to your Raspberry Pi.
-4. Navigate to the project directory and run the Flask app:
-   python3 app.py
-5. Access the UI by entering 'pillsync.local:5000' in a web browser.
+pillsync/
+├── app.py                   # Main Flask server
+├── data/                    # Contains SQLite DB and credentials file
+│   ├── pillsync.db
+│   └── credentials.json
+├── functions/               # Simulated hardware control scripts
+│   ├── servermotor_sim.py
+│   ├── buzzer_sim.py
+│   └── LEDalert_sim.py
+├── static/                  # Static assets (e.g., background.png)
+│   └── background.png
+├── templates/               # HTML templates (Flask Jinja2)
+│   ├── login.html
+│   ├── update_credentials.html
+│   ├── dashboard.html
+│   ├── prescriptions.html
+│   └── prescription_form.html
+├── requirements.txt         # Python dependencies
+├── README.md                # Project overview and instructions
+└── license.txt              # Project license
 
-Usage:
-- Go to the home page to view existing medication schedules.
-- Use the form to add new prescriptions and view refill dates.
+---
 
-License:
-This project is open-source. Feel free to contribute or modify as needed.
+## ⚙️ Setup Instructions
 
-Instalation Guide and Requirements:
-After cloning the repository onto your device, navigate to the pillsync folder and run
-the folloing command:
+### 1. Clone the Repository
 
-pip3 install -r requirements.txt
+```bash
+git clone https://github.com/prestonheffington/pillsync.git
+cd pillsync
+```
 
-This will install all required dependencies and packages used so far. 
+### 2. Install Dependencies
 
+```bash
+sudo pip3 install -r requirements.txt --break-system-packages
+```
+
+### 3. Run the Server
+
+```bash
+python3 app.py
+```
+
+Then visit:
+
+```
+http://<your_pi_ip>:5000
+```
+
+Example:
+```
+http://192.168.1.50:5000
+```
+
+---
+
+## 🔐 Default Credentials
+
+- **Username:** `admin`
+- **Password:** `password`
+
+> You will be prompted to change these on first login.
+
+---
+
+## 🔧 Hardware Integration
+
+This project supports GPIO peripherals such as:
+
+- **LEDs** – Represent various alerts and actions.
+- **Buzzers** – Audio alerts for scheduled doses.
+- **Stepper motors** – Simulate or control medication dispensing.
+- **Fingerprint sensor** (planned) – For secure identity verification before dispensing.
+
+> For prototyping, LEDs are used to simulate all peripheral outputs.
+
+---
+
+## 💡 Development Notes
+
+- All UI is dynamically updated based on database content.
+- Routes and functions are modular to allow future hardware integration.
+- Background tasks run in a thread to check medication schedules every minute.
+
+---
+
+## 🛡️ Planned Features
+
+- Remote secure access via Tailscale or Cloudflare Tunnel
+- Fingerprint-based dispense authorization
+- Refill alerts via email/text
+- Activity logs and usage analytics
+
+---
+
+## 🤝 Contribution
+
+To contribute, fork the repo and submit a pull request. The current structure must be followed. All changes must be tested before merging into `main`.
+
+---
+
+## 📄 License
+
+This project is licensed under the terms of the MIT License. See `license.txt` for details.
+
+---
+
+## 👨‍💻 Maintainer
+
+**Preston Heffington**  
+GitHub: [@prestonheffington](https://github.com/prestonheffington)
