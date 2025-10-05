@@ -29,9 +29,11 @@ def get_db():
         db.row_factory = sqlite3.Row  # Allows dictionary-like access to rows
     return db
 
+
 def hash_password(password):
     """Hash a password using MD5 to match the stored format."""
     return hashlib.md5(password.encode()).hexdigest()
+
 
 def load_credentials():
     """Load username and hashed password from the JSON file."""
@@ -40,10 +42,12 @@ def load_credentials():
             return json.load(file)
     return {"username": "admin", "password": hash_password("password")}  # Default login
 
+
 def save_credentials(username, password):
     """Save new credentials to JSON file."""
     with open(CREDENTIALS_FILE, "w") as file:
         json.dump({"username": username, "password": hash_password(password)}, file)
+
 
 @app.before_request
 def check_session_timeout():
@@ -51,15 +55,18 @@ def check_session_timeout():
     if "user" in session:
         last_active = session.get("last_active", time.time())
         if time.time() - last_active > SESSION_TIMEOUT:
-            session.pop("user", None)  # Logout the user
+            session.pop("user", None)      # Logout the user
+            session.pop("user_id", None)   # Also drop user_id
             return redirect(url_for("login"))
         session["last_active"] = time.time()  # Update activity timestamp
+
 
 @app.teardown_appcontext
 def close_connection(exception):
     db = getattr(g, "_database", None)
     if db is not None:
         db.close()
+
 
 def check_medication_schedule():
     print("🔄 Background alert system started...")
@@ -106,27 +113,29 @@ def check_medication_schedule():
                     print("❌ No medications matched the time window.")
 
                 db.close()  # Close database connection
-
                 time.sleep(60)  # Check every 60 seconds
 
             except Exception as e:
                 print(f"⚠ ERROR in background thread: {e}")
                 time.sleep(10)  # Prevent the thread from dying immediately
 
+
 # Start the alert thread
 alert_thread = threading.Thread(target=check_medication_schedule, daemon=True)
 alert_thread.start()
 
+
 @app.route("/", methods=["GET", "POST"])
 def login():
     credentials = load_credentials()
-    
+
+    # Already logged in? go to dashboard
     if "user" in session:
         return redirect(url_for("dashboard"))
 
     if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
         hashed_input_password = hash_password(password)
 
         print(f"DEBUG: Entered Username: {username}")
@@ -137,18 +146,42 @@ def login():
         if username == credentials["username"] and hashed_input_password == credentials["password"]:
             print("DEBUG: Login successful!")
             session["user"] = username
-            
-            # **Redirect to password update page if default credentials are still used**
+
+            # Fetch or create a DB user row and store user_id in session
+            db = get_db()
+
+            # Try to find by name (since users.name exists; there's no 'username' column)
+            user = db.execute(
+                "SELECT user_id FROM users WHERE name = ?",
+                (username,)
+            ).fetchone()
+
+            if user is None:
+                # Create a minimal user record; adjust birthdate default if you like
+                db.execute(
+                    "INSERT INTO users (name, birthdate) VALUES (?, ?)",
+                    (username, "1990-01-01")
+                )
+                db.commit()
+                user = db.execute(
+                    "SELECT user_id FROM users WHERE name = ?",
+                    (username,)
+                ).fetchone()
+
+            session["user_id"] = user["user_id"]
+
+            # Keep your default-credentials redirect
             if username == "admin" and hashed_input_password == hash_password("password"):
                 print("DEBUG: Default credentials detected, redirecting to update page.")
                 return redirect(url_for("update_credentials"))
-            
+
             return redirect(url_for("dashboard"))
         else:
             print("DEBUG: Invalid login attempt")
             return "Invalid credentials", 401
 
     return render_template("login.html")
+
 
 @app.route("/update_credentials", methods=["GET", "POST"])
 def update_credentials():
@@ -160,21 +193,33 @@ def update_credentials():
         new_username = request.form.get("username")
         new_password = request.form.get("password")
 
-        # Update stored credentials
+        # Update stored credentials (JSON file)
         save_credentials(new_username, new_password)
 
-        session["user"] = new_username  # Keep user logged in
+        # 🔹 NEW: also update the user's name in the database
+        db = get_db()
+        db.execute(
+            "UPDATE users SET name = ? WHERE user_id = ?",
+            (new_username, session["user_id"])
+        )
+        db.commit()
+
+        # Keep user logged in under the new name
+        session["user"] = new_username
         print("DEBUG: Credentials updated successfully!")
 
         return redirect(url_for("dashboard"))
 
     return render_template("update_credentials.html")
 
+
 @app.route("/logout")
 def logout():
     """Manually log out the user."""
     session.pop("user", None)
+    session.pop("user_id", None)
     return redirect(url_for("login"))
+
 
 @app.route("/users")
 def get_users():
@@ -183,16 +228,17 @@ def get_users():
     users = cursor.fetchall()
     return render_template("users.html", users=users)
 
+
 @app.route("/dashboard")
 def dashboard():
     if "user" not in session:
         return redirect(url_for("login"))
-    
+
     db = get_db()
-    
+
     # Fetch the logged-in user's name from the database
     user = db.execute("SELECT name FROM users WHERE user_id = ?", (session["user"],)).fetchone()
-    
+
     # Fetch upcoming medications from the prescriptions table
     prescriptions = db.execute("SELECT name, dosage, time_of_day FROM prescriptions WHERE status='Active'").fetchall()
 
@@ -206,6 +252,7 @@ def get_prescriptions():
     prescriptions = cursor.fetchall()
     return render_template("prescriptions.html", prescriptions=prescriptions)
 
+
 @app.route("/delete_prescription/<int:prescription_id>", methods=["POST"])
 def delete_prescription(prescription_id):
     if "user" not in session:
@@ -214,13 +261,15 @@ def delete_prescription(prescription_id):
     db = get_db()
     db.execute("DELETE FROM prescriptions WHERE prescription_id = ?", (prescription_id,))
     db.commit()
-    
+
     return {"success": True}
+
 
 @app.route("/prescription_form")
 def prescription_form():
     """Render the prescription entry form."""
     return render_template("prescription_form.html")
+
 
 @app.route("/add_prescription", methods=["POST"])
 def add_prescription():
@@ -240,7 +289,8 @@ def add_prescription():
     """, (user_id, name, amount, frequency, refill_date, dosage, time_of_day))
     db.commit()
 
-    return redirect(url_for("get_prescriptions"))  
+    return redirect(url_for("get_prescriptions"))
+
 
 @app.route("/dispense", methods=["POST"])
 def dispense():
@@ -266,4 +316,3 @@ if __name__ == "__main__":
         print("🔄 Background thread for medication alerts started.")
 
     app.run(host="0.0.0.0", port=5000, debug=False)  # Disable auto-reload to prevent duplicate threads
-
