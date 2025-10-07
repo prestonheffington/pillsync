@@ -18,19 +18,28 @@
             border-radius: 8px;
             display: inline-block;
             margin-top: 20px;
+            max-width: 420px;
+            width: 90%;
+            text-align: left;
         }
+        label { display:block; margin-top: 10px; font-weight: bold; }
         input, select {
             width: 100%;
             padding: 8px;
-            margin: 10px 0;
+            margin: 6px 0 12px 0;
+            box-sizing: border-box;
         }
+        .hint { font-size: 12px; color: #555; margin-top: -8px; margin-bottom: 12px; }
         button {
             background-color: #FF7F00;
             color: white;
             padding: 10px;
             border: none;
             cursor: pointer;
+            width: 100%;
+            border-radius: 4px;
         }
+        button:hover { opacity: 0.95; }
     </style>
 </head>
 <body>
@@ -38,14 +47,36 @@
     <h1>Manage Prescriptions</h1>
 
     <form action="/add_prescription" method="POST">
-        <input type="text" name="name" placeholder="Prescription Name" required>
-        <input type="number" name="amount" placeholder="Amount (in days)" required>
-        <input type="text" name="frequency" placeholder="Frequency (e.g., Daily, Twice a day)" required>
-        <input type="date" name="refill_date" required>
-        <input type="text" name="dosage" placeholder="Dosage (e.g., 100mg)">
-        <input type="text" name="time_of_day" placeholder="Time of Day (e.g., Morning)">
+        <!-- NEW: Choose which user this prescription belongs to -->
+        <label for="user_id">User</label>
+        <select name="user_id" id="user_id" required>
+            {% for u in users %}
+              <option value="{{ u.user_id }}">{{ u.name }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="name">Prescription Name</label>
+        <input id="name" type="text" name="name" placeholder="e.g., Aspirin" required>
+
+        <label for="amount">Amount (in days)</label>
+        <input id="amount" type="number" name="amount" min="1" placeholder="e.g., 30" required>
+
+        <label for="frequency">Frequency</label>
+        <input id="frequency" type="text" name="frequency" placeholder="e.g., Daily, Twice a day" required>
+
+        <label for="refill_date">Refill Date</label>
+        <input id="refill_date" type="date" name="refill_date" required>
+
+        <label for="dosage">Dosage</label>
+        <input id="dosage" type="text" name="dosage" placeholder="e.g., 100mg">
+
+        <label for="time_of_day">Time of Day</label>
+        <input id="time_of_day" type="text" name="time_of_day" placeholder="HH:MM (24h), e.g., 09:00">
+        <div class="hint">Use 24-hour format (HH:MM). The alert thread checks within ±15 minutes.</div>
+
         <button type="submit">Add Prescription</button>
     </form>
 
 </body>
 </html>
+

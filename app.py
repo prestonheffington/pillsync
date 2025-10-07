@@ -11,6 +11,11 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = "your_secret_key"
 SESSION_TIMEOUT = 900  # Auto logout after 15 minutes of inactivity
+app.config.update(
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=False,   # HTTP on LAN
+    SESSION_COOKIE_HTTPONLY=True,
+)
 
 # External database for user/meds data
 DATABASE = "data/pillsync.db"
@@ -54,11 +59,17 @@ def check_session_timeout():
     """Check if the session has expired due to inactivity."""
     if "user" in session:
         last_active = session.get("last_active", time.time())
-        if time.time() - last_active > SESSION_TIMEOUT:
-            session.pop("user", None)      # Logout the user
-            session.pop("user_id", None)   # Also drop user_id
+        idle = time.time() - last_active
+        if idle > SESSION_TIMEOUT:
+            print(f"[SESSION] Timeout: idle={idle:.1f}s > {SESSION_TIMEOUT}s. Logging out.")
+            session.pop("user", None)
+            session.pop("user_id", None)
             return redirect(url_for("login"))
-        session["last_active"] = time.time()  # Update activity timestamp
+        session["last_active"] = time.time()
+    else:
+        # uncomment if you want to see every unauth'd hit:
+        # print("[SESSION] No user in session")
+        pass
 
 
 @app.teardown_appcontext
@@ -98,8 +109,7 @@ def check_medication_schedule():
                         print(f"✅ Triggering alert for {med['name']} at {now}")
 
                         # Run alert scripts
-                        subprocess.run(["python3", "functions/buzzer_sim.py"])
-                        subprocess.run(["python3", "/home/pneil/pillsync/functions/buzzer_sim.py"], check=True)
+                        subprocess.run(["python3", "functions/buzzer_sim.py"], check=True)
                         triggered = True
 
                         # 🔹 Mark the medication as "Dispensed" so it does not trigger again
@@ -121,8 +131,8 @@ def check_medication_schedule():
 
 
 # Start the alert thread
-alert_thread = threading.Thread(target=check_medication_schedule, daemon=True)
-alert_thread.start()
+# alert_thread = threading.Thread(target=check_medication_schedule, daemon=True)
+# alert_thread.start()
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -224,9 +234,38 @@ def logout():
 @app.route("/users")
 def get_users():
     db = get_db()
-    cursor = db.execute("SELECT * FROM users")
+    # exclude admin from the list view; tweak if you prefer
+    cursor = db.execute("SELECT * FROM users WHERE name != ?", ('admin',))
     users = cursor.fetchall()
+
+    # device/screen client can request JSON via ?format=json
+    if request.args.get("format") == "json":
+        return [
+            {"user_id": u["user_id"], "name": u["name"], "birthdate": u["birthdate"]}
+            for u in users
+        ]
     return render_template("users.html", users=users)
+
+
+@app.route("/edit_user/<int:user_id>", methods=["GET", "POST"])
+def edit_user(user_id):
+    # only admin can edit
+    if session.get("user") != 'admin':
+        return "Unauthorized", 403
+
+    db = get_db()
+    if request.method == "POST":
+        new_name = request.form["name"]
+        new_birthdate = request.form["birthdate"]
+        db.execute(
+            "UPDATE users SET name = ?, birthdate = ? WHERE user_id = ?",
+            (new_name, new_birthdate, user_id)
+        )
+        db.commit()
+        return redirect(url_for("get_users"))
+
+    user_to_edit = db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
+    return render_template("edit_user.html", user=user_to_edit)
 
 
 @app.route("/dashboard")
@@ -236,19 +275,62 @@ def dashboard():
 
     db = get_db()
 
-    # Fetch the logged-in user's name from the database
-    user = db.execute("SELECT name FROM users WHERE user_id = ?", (session["user"],)).fetchone()
+    # ✅ use session["user_id"], not session["user"]
+    user = db.execute(
+        "SELECT name FROM users WHERE user_id = ?",
+        (session["user_id"],)
+    ).fetchone()
 
-    # Fetch upcoming medications from the prescriptions table
-    prescriptions = db.execute("SELECT name, dosage, time_of_day FROM prescriptions WHERE status='Active'").fetchall()
+    prescriptions = db.execute(
+        "SELECT name, dosage, time_of_day FROM prescriptions WHERE status='Active' AND user_id = ?",
+        (session["user_id"],)
+    ).fetchall()
 
-    return render_template("dashboard.html", user_name=user["name"] if user else "User", prescriptions=prescriptions)
+    return render_template(
+        "dashboard.html",
+        user_name=user["name"] if user else "User",
+        prescriptions=prescriptions
+    )
+
+
+@app.route("/debug_session")
+def debug_session():
+    # ONLY for debugging; remove later
+    return {
+        "has_user": "user" in session,
+        "has_user_id": "user_id" in session,
+        "user": session.get("user"),
+        "user_id": session.get("user_id"),
+        "last_active": session.get("last_active"),
+    }, 200
 
 
 @app.route("/prescriptions")
 def get_prescriptions():
     db = get_db()
-    cursor = db.execute("SELECT * FROM prescriptions")
+
+    # JSON feed (for device/screen client) → return all (add auth later if needed)
+    if request.args.get("format") == "json":
+        cursor = db.execute("SELECT * FROM prescriptions")
+        prescriptions = cursor.fetchall()
+        return [
+            {
+                "prescription_id": p["prescription_id"],
+                "user_id": p["user_id"],
+                "name": p["name"],
+                "amount": p["amount"],
+                "frequency": p["frequency"],
+                "refill_date": p["refill_date"],
+                "dosage": p["dosage"],
+                "time_of_day": p["time_of_day"],
+                "status": p["status"]
+            } for p in prescriptions
+        ]
+
+    # Web page → only current user's prescriptions
+    if "user" not in session:
+        return redirect(url_for("login"))
+    cursor = db.execute("SELECT * FROM prescriptions WHERE user_id = ?", (session["user_id"],))
     prescriptions = cursor.fetchall()
     return render_template("prescriptions.html", prescriptions=prescriptions)
 
@@ -259,23 +341,31 @@ def delete_prescription(prescription_id):
         return redirect(url_for("login"))
 
     db = get_db()
-    db.execute("DELETE FROM prescriptions WHERE prescription_id = ?", (prescription_id,))
+    db.execute(
+        "DELETE FROM prescriptions WHERE prescription_id = ? AND user_id = ?",
+        (prescription_id, session["user_id"])
+    )
     db.commit()
-
     return {"success": True}
+
 
 
 @app.route("/prescription_form")
 def prescription_form():
-    """Render the prescription entry form."""
-    return render_template("prescription_form.html")
+    if "user" not in session:
+        return redirect(url_for("login"))
+    db = get_db()
+    users = db.execute("SELECT user_id, name FROM users WHERE name != ?", ('admin',)).fetchall()
+    return render_template("prescription_form.html", users=users)
 
 
 @app.route("/add_prescription", methods=["POST"])
 def add_prescription():
-    """Handle form submission and add prescription to database."""
+    if "user" not in session:
+        return redirect(url_for("login"))
+
     db = get_db()
-    user_id = 1  # Placeholder for now (future: assign dynamically)
+    user_id = request.form["user_id"]  # from dropdown
     name = request.form["name"]
     amount = request.form["amount"]
     frequency = request.form["frequency"]
@@ -304,6 +394,75 @@ def dispense():
     except subprocess.CalledProcessError as e:
         print("ERROR: Dispense failed ->", e.stderr)  # Log error
         return {"success": False, "error": "Failed to dispense"}
+
+
+# --- device / screen communication endpoints ---
+
+@app.route("/ping", methods=["GET"])
+def ping():
+    """Simple connectivity check for the on-device screen."""
+    return {"status": "ok"}, 200
+
+
+@app.route("/get_time", methods=["GET"])
+def get_time():
+    """Return current server time (for touchscreen clock sync)."""
+    return {"time": time.time()}, 200
+
+
+@app.route("/check_alert", methods=["GET"])
+def check_alert():
+    """Return the nearest due dose within ±15 min, including its prescription_id."""
+    now = datetime.now().strftime("%H:%M")
+    now_dt = datetime.strptime(now, "%H:%M")
+    db = get_db()
+
+    meds = db.execute(
+        "SELECT prescription_id, user_id, name, time_of_day, status FROM prescriptions WHERE status='Active'"
+    ).fetchall()
+
+    closest = None
+    closest_diff = 99999.0
+    for med in meds:
+        try:
+            med_time_dt = datetime.strptime(med["time_of_day"], "%H:%M")
+        except Exception:
+            continue
+        diff = abs((now_dt - med_time_dt).total_seconds() / 60.0)
+        if diff <= 15 and diff < closest_diff:
+            closest = med
+            closest_diff = diff
+
+    if closest:
+        return {
+            "alert": True,
+            "user_id": closest["user_id"],
+            "prescription_id": closest["prescription_id"],
+            "name": closest["name"],
+            "message": "Scan Finger to Dispense",
+            "color": "red"
+        }, 200
+
+    return {"alert": False, "message": ""}, 200
+
+
+@app.route("/sync_actions", methods=["POST"])
+def sync_actions():
+    """
+    Body: {"actions":[{"prescription_id": <int>, "action":"dispense", "success": true}]}
+    """
+    data = request.get_json(force=True)
+    actions = data.get("actions", [])
+    db = get_db()
+    now = datetime.now().strftime("%H:%M")
+    for action in actions:
+        if action.get("action") == "dispense" and action.get("success"):
+            db.execute(
+                "UPDATE prescriptions SET status='Dispensed', last_dispensed=? WHERE prescription_id=?",
+                (now, action["prescription_id"])
+            )
+    db.commit()
+    return {"success": True}, 200
 
 
 if __name__ == "__main__":
