@@ -1,40 +1,57 @@
-# Import necessary libraries
-import RPi.GPIO as GPIO
+# sos_neopixel.py
+# Flashes an 8-LED NeoPixel stick in orange (... --- ...) SOS pattern.
+
 import time
+import board
+import neopixel
 
-# Set up
-LED_PIN = 17  # Use pin 17 as requested
+# --- Configuration ---
+PIXEL_PIN = board.D13      # GPIO 13 (BCM)
+NUM_PIXELS = 8
+COLOR = (255, 80, 0)       # orange
+BRIGHTNESS = 0.3
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
-GPIO.setup(LED_PIN, GPIO.OUT)
+# Morse timing (seconds)
+DOT = 0.2
+DASH = DOT * 3
+INTRA = DOT
+LETTER_GAP = DOT * 3
+WORD_GAP = DOT * 7
 
-# SOS pattern function
-def sos_signal():
-    for _ in range(2):  # Run the SOS sequence twice
-        # Three short blinks (S)
+pixels = neopixel.NeoPixel(PIXEL_PIN, NUM_PIXELS, brightness=BRIGHTNESS, auto_write=False)
+
+def flash(duration):
+    """Turn on all pixels in orange for <duration> seconds."""
+    pixels.fill(COLOR)
+    pixels.show()
+    time.sleep(duration)
+    pixels.fill((0, 0, 0))
+    pixels.show()
+    time.sleep(INTRA)
+
+def sos_signal(repeats=2):
+    """Play SOS (... --- ...) <repeats> times."""
+    for _ in range(repeats):
+        # S = ...
         for _ in range(3):
-            GPIO.output(LED_PIN, GPIO.HIGH)
-            time.sleep(0.2)  # Short blink
-            GPIO.output(LED_PIN, GPIO.LOW)
-            time.sleep(0.2)
+            flash(DOT)
+        time.sleep(LETTER_GAP)
 
-        # Three long blinks (O)
+        # O = ---
         for _ in range(3):
-            GPIO.output(LED_PIN, GPIO.HIGH)
-            time.sleep(0.6)  # Long blink
-            GPIO.output(LED_PIN, GPIO.LOW)
-            time.sleep(0.2)
+            flash(DASH)
+        time.sleep(LETTER_GAP)
 
-        # Three short blinks (S)
+        # S = ...
         for _ in range(3):
-            GPIO.output(LED_PIN, GPIO.HIGH)
-            time.sleep(0.2)  # Short blink
-            GPIO.output(LED_PIN, GPIO.LOW)
-            time.sleep(0.2)
-
-        time.sleep(2)  # Pause before repeating the sequence
+            flash(DOT)
+        time.sleep(WORD_GAP)
 
 if __name__ == "__main__":
-    sos_signal()
-    GPIO.cleanup()  # Ensure GPIO pins are reset after execution
+    try:
+        sos_signal()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        pixels.fill((0, 0, 0))
+        pixels.show()
