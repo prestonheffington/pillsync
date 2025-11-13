@@ -237,24 +237,7 @@ def logout():
     session.pop("user_id", None)
     return redirect(url_for("login"))
 
-"""
-@app.route("/users")
-def get_users():
-    db = get_db()
-    # exclude admin from the list view; tweak if you prefer
-    cursor = db.execute("SELECT * FROM users WHERE name != ?", ('admin',))
-    users = cursor.fetchall()
-
-    # device/screen client can request JSON via ?format=json
-    if request.args.get("format") == "json":
-        return [
-            {"user_id": u["user_id"], "name": u["name"], "birthdate": u["birthdate"]}
-            for u in users
-        ]
-    return render_template("users.html", users=users)
-"""
-
-@app.route("/edit_user/<int:user_id>", methods=["GET", "POST"])
+"""@app.route("/edit_user/<int:user_id>", methods=["GET", "POST"])
 def edit_user(user_id):
     # only admin can edit
     if session.get("user") != 'admin':
@@ -272,7 +255,7 @@ def edit_user(user_id):
         return redirect(url_for("get_users"))
 
     user_to_edit = db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
-    return render_template("edit_user.html", user=user_to_edit)
+    return render_template("edit_user.html", user=user_to_edit)"""
 
 
 @app.route("/dashboard")
@@ -372,6 +355,58 @@ def delete_fingerprint(user_id):
     # TODO: integrate actual fingerprint delete logic
     return redirect(url_for("get_users"))
 
+@app.route("/users/add", methods=["POST"])
+def add_user():
+    """
+    Create a new user in the users table.
+    Currently only stores a display name; later we can add more fields.
+    """
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    name = request.form.get("name", "").strip()
+    if not name:
+        # No name provided; just go back to the users page
+        return redirect(url_for("get_users"))
+
+    db = get_db()
+    try:
+        # NOTE:
+        # If your users table uses 'username' instead of 'name',
+        # change the column name below to 'username'.
+        db.execute("INSERT INTO users (name) VALUES (?);", (name,))
+        db.commit()
+    except Exception as e:
+        print(f"[ERROR] add_user failed: {e}")
+        # For now just bounce back; you can also flash a message if needed
+    return redirect(url_for("get_users"))
+
+
+
+@app.route("/users/<int:user_id>/delete", methods=["POST"])
+def delete_user(user_id):
+    """
+    Delete a user from the users table.
+
+    NOTE: Right now this does NOT touch prescriptions.
+    Once prescriptions are tied to user_id, we will decide whether to:
+    - cascade delete their prescriptions, or
+    - prevent deletion if prescriptions still exist.
+    """
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    db = sqlite3.connect("data/pillsync.db")
+    try:
+        # If your PK column is 'user_id' instead of 'id', change 'id' below
+        db.execute("DELETE FROM users WHERE id = ?;", (user_id,))
+        db.commit()
+    finally:
+        db.close()
+
+    return redirect(url_for("get_users"))
+
+
 @app.route("/demo")
 def demo():
     """
@@ -405,7 +440,7 @@ def debug_session():
 def get_prescriptions():
     db = get_db()
 
-    # JSON feed (for device/screen client) → return all (add auth later if needed)
+    # JSON feed (for device/screen client)
     if request.args.get("format") == "json":
         cursor = db.execute("SELECT * FROM prescriptions")
         prescriptions = cursor.fetchall()
@@ -419,16 +454,27 @@ def get_prescriptions():
                 "refill_date": p["refill_date"],
                 "dosage": p["dosage"],
                 "time_of_day": p["time_of_day"],
-                "status": p["status"]
-            } for p in prescriptions
+                "status": p["status"],
+            }
+            for p in prescriptions
         ]
 
-    # Web page → only current user's prescriptions
+    # Web page → login required
+    if "user" not in session:
+        return redirect(url_for("login"))
+
     # Optional user context from query string: /prescriptions?user_id=1
     selected_user_id = request.args.get("user_id", type=int)
 
-    db = get_db()
-    cur = db.execute("SELECT * FROM prescriptions")
+    # Build SQL conditionally based on whether a user was selected
+    sql = "SELECT * FROM prescriptions"
+    params = []
+
+    if selected_user_id is not None:
+        sql += " WHERE user_id = ?"
+        params.append(selected_user_id)
+
+    cur = db.execute(sql, params)
     prescriptions = cur.fetchall()
 
     return render_template(
@@ -436,6 +482,7 @@ def get_prescriptions():
         prescriptions=prescriptions,
         selected_user_id=selected_user_id,
     )
+
 
 
 @app.route("/delete_prescription/<int:prescription_id>", methods=["POST"])
