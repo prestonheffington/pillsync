@@ -110,7 +110,7 @@
                 <td>{{ user.name }}</td>
                 <td>
                     <!-- This will hit /prescriptions?user_id=...; route can start using that later -->
-                    <a href="{{ url_for('prescriptions', user_id=user.id) }}" class="btn">
+                    <a href="{{ url_for('get_prescriptions', user_id=user.id) }}" class="btn">
                         View / Manage
                     </a>
                 </td>
