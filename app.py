@@ -482,7 +482,28 @@ def home_motors():
             "error": f"Exception occurred: {e}",
         }, 500
 
+@app.route("/demo_alarms", methods=["POST"])
+def demo_alarms():
+    """
+    Demo-only endpoint to trigger alarms on command.
+    Uses core.trigger_alarms and bypasses fingerprint.
+    """
+    if "user" not in session:
+        return {"success": False, "error": "Unauthorized"}, 401
 
+    try:
+        core.trigger_alarms(duration=30.0)
+        return {
+            "success": True,
+            "message": "Demo alarms triggered successfully.",
+        }, 200
+
+    except Exception as e:
+        print("ERROR: /demo_alarms route crashed ->", e)
+        return {
+            "success": False,
+            "error": f"Exception occurred: {e}",
+        }, 500
 
 # --- device / screen communication endpoints ---
 
