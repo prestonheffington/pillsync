@@ -139,11 +139,39 @@
                 max-width: none;
             }
         }
+
+    .nav-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    .nav-link {
+        padding: 6px 12px;
+        border-radius: 999px;
+        text-decoration: none;
+        font-size: 0.9rem;
+        background: rgba(15, 23, 42, 0.8);
+        color: #e5e7eb;
+        border: 1px solid rgba(55, 65, 81, 0.8);
+    }
+    .nav-link:hover {
+        background: rgba(31, 41, 55, 0.9);
+    }
+
     </style>
 </head>
 <body>
     <div class="top-border"></div>
     <div class="header">PillSync</div>
+
+        <!-- Navigation bar -->
+    <div class="nav-bar" style="margin-bottom: 16px;">
+        <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+        <a href="{{ url_for('demo') }}" class="nav-link">Demo Day</a>
+        <a href="{{ url_for('logout') }}" class="nav-link" style="float: right;">Logout</a>
+    </div>
+    
 
     <div class="glass-panel">
         <h2>Welcome back, <span id="username">{{ user_name }}</span></h2>
@@ -171,10 +199,6 @@
     </div>
 
     <div class="bottom-border"></div>
-
-    <button onclick="window.location.href='/logout'" style="position: absolute; top: 10px; right: 10px; padding: 10px; background-color: red; color: white; border: none; cursor: pointer;">
-        Logout
-    </button>
 
     <script>
         function dispenseMedication() {
