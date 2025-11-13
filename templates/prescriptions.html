@@ -121,9 +121,20 @@
 <body>
     <div class="top-border"></div>
     <div class="header">PillSync</div>
+    <h1>Prescriptions</h1>
+
+{% if selected_user_id %}
+    <p style="color:#9ca3af; font-size:0.9rem;">
+        Viewing prescriptions for <strong>User {{ selected_user_id }}</strong>
+    </p>
+{% else %}
+    <p style="color:#9ca3af; font-size:0.9rem;">
+        Viewing prescriptions for <strong>All Users</strong>
+    </p>
+{% endif %}
+
 
     <div class="glass-panel">
-        <h2>Your Prescriptions</h2>
 
         <ul class="prescription-list">
             {% for prescription in prescriptions %}
@@ -143,6 +154,13 @@
                 <button class="action-button">Back to Dashboard</button>
             </a>
         </div>
+        
+        <p>
+    <a href="{{ url_for('get_users') }}" style="color:#93c5fd; text-decoration:none;">
+        ⬅ Back to Users
+    </a>
+</p>
+
     </div>
 
     <div class="bottom-border"></div>

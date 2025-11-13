@@ -320,6 +320,7 @@ def users():
 
     return render_template("users.html", users=demo_users)
 
+
 @app.route("/demo")
 def demo():
     """
@@ -372,11 +373,18 @@ def get_prescriptions():
         ]
 
     # Web page → only current user's prescriptions
-    if "user" not in session:
-        return redirect(url_for("login"))
-    cursor = db.execute("SELECT * FROM prescriptions WHERE user_id = ?", (session["user_id"],))
-    prescriptions = cursor.fetchall()
-    return render_template("prescriptions.html", prescriptions=prescriptions)
+    # Optional user context from query string: /prescriptions?user_id=1
+    selected_user_id = request.args.get("user_id", type=int)
+
+    db = get_db()
+    cur = db.execute("SELECT * FROM prescriptions")
+    prescriptions = cur.fetchall()
+
+    return render_template(
+        "prescriptions.html",
+        prescriptions=prescriptions,
+        selected_user_id=selected_user_id,
+    )
 
 
 @app.route("/delete_prescription/<int:prescription_id>", methods=["POST"])
