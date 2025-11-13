@@ -237,7 +237,7 @@ def logout():
     session.pop("user_id", None)
     return redirect(url_for("login"))
 
-
+"""
 @app.route("/users")
 def get_users():
     db = get_db()
@@ -252,7 +252,7 @@ def get_users():
             for u in users
         ]
     return render_template("users.html", users=users)
-
+"""
 
 @app.route("/edit_user/<int:user_id>", methods=["GET", "POST"])
 def edit_user(user_id):
@@ -300,26 +300,77 @@ def dashboard():
     )
 
 @app.route("/users")
-def users():
-    """
-    User Management page (2-user setup).
+def get_users():
+    if "user" not in session:
+        return redirect(url_for("login"))
 
-    For now, this is a simple placeholder that:
-    - Shows two logical users
-    - Provides links into the prescriptions page (with ?user_id=...)
-    - Leaves fingerprint setup/delete as "coming soon"
+    db = sqlite3.connect("data/pillsync.db")
+    db.row_factory = sqlite3.Row
+
+    rows = db.execute("SELECT * FROM users;").fetchall()
+    db.close()
+
+    users = []
+    for row in rows:
+        cols = row.keys()
+
+        # Try to detect the ID column
+        if "id" in cols:
+            id_key = "id"
+        elif "user_id" in cols:
+            id_key = "user_id"
+        else:
+            # Fallback: first column as ID
+            id_key = cols[0]
+
+        # Try to detect the name column
+        if "name" in cols:
+            name_key = "name"
+        elif "username" in cols:
+            name_key = "username"
+        else:
+            # Fallback: second column as name if it exists
+            name_key = cols[1] if len(cols) > 1 else cols[0]
+
+        users.append(
+            {
+                "id": row[id_key],
+                "name": row[name_key],
+            }
+        )
+
+    return render_template("users.html", users=users)
+
+
+@app.route("/users/<int:user_id>/fingerprint/enroll", methods=["POST"])
+def enroll_fingerprint(user_id):
+    """
+    Stub: start fingerprint enrollment for a user.
+
+    Later this will call into a real fingerprint library, but for now it's just
+    a placeholder endpoint so the UI and routing are complete.
     """
     if "user" not in session:
         return redirect(url_for("login"))
 
-    # Placeholder 2-user setup; later this can come from the DB
-    demo_users = [
-        {"id": 1, "name": "User 1"},
-        {"id": 2, "name": "User 2"},
-    ]
+    print(f"[DEBUG] Fingerprint enrollment requested for user_id={user_id}")
+    # TODO: integrate actual fingerprint enrollment flow
+    return redirect(url_for("get_users"))
 
-    return render_template("users.html", users=demo_users)
 
+@app.route("/users/<int:user_id>/fingerprint/delete", methods=["POST"])
+def delete_fingerprint(user_id):
+    """
+    Stub: delete fingerprint data for a user.
+
+    Later this will update DB and sensor storage. For now, it's a no-op stub.
+    """
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    print(f"[DEBUG] Fingerprint deletion requested for user_id={user_id}")
+    # TODO: integrate actual fingerprint delete logic
+    return redirect(url_for("get_users"))
 
 @app.route("/demo")
 def demo():
