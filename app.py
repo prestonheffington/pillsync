@@ -299,6 +299,22 @@ def dashboard():
         prescriptions=prescriptions
     )
 
+@app.route("/demo")
+def demo():
+    """
+    Demo Day page.
+
+    - Protected by normal app login (session["user"])
+    - Will eventually expose:
+        - Trigger alarms on command
+        - Dispense on command (bypass fingerprint)
+        - Home all motors
+    """
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    return render_template("demo.html")
+
 
 @app.route("/debug_session")
 def debug_session():

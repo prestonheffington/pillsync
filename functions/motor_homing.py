@@ -13,21 +13,15 @@ mechanical alignment has been done previously and
 one full revolution returns to the logical "home" slot.
 """
 
-from .motor_array import (
-    MotorArray,
-    WHOLESTEPS_PER_CALL,
-)
+from .motor_array import WHOLESTEPS_PER_CALL
 
 # 7 × 320 whole steps per full homing move
 SLOTS_PER_REV = 7
 HOME_WHOLESTEPS = SLOTS_PER_REV * WHOLESTEPS_PER_CALL
 
 
-# Global MotorArray instance for homing operations
-motor_array = MotorArray()
-
-
 def home_motor(
+    motor_array,
     motor_id: int,
     direction: int = -1,
     delay: float = 0.003,
@@ -35,6 +29,7 @@ def home_motor(
     """
     Home a single motor by rotating it 7 × 320 whole steps.
 
+    :param motor_array: an instance of MotorArray to operate on
     :param motor_id: Motor number (1–6)
     :param direction: -1 or +1, direction toward "home"
     :param delay: delay between half-steps (seconds)
@@ -55,20 +50,22 @@ def home_motor(
 
 
 def home_all_motors(
+    motor_array,
     direction: int = -1,
     delay: float = 0.003,
 ) -> dict:
     """
     Home motors 1–6 sequentially.
 
+    :param motor_array: an instance of MotorArray to operate on
     :param direction: homing direction for all motors
     :param delay: delay between half-steps
     :return: dict of {motor_id: True} for now (placeholder for future error handling)
     """
     results = {}
     for mid in range(1, 7):
-        # One at a time by design
         ok = home_motor(
+            motor_array=motor_array,
             motor_id=mid,
             direction=direction,
             delay=delay,
@@ -78,6 +75,7 @@ def home_all_motors(
 
 
 if __name__ == "__main__":
-    print("[Homing] Starting homing sequence for motors 1–6...")
-    res = home_all_motors(direction=-1)
-    print("[Homing] Done. Results:", res)
+    # This module is normally used via core.py. Direct running would need
+    # manual wiring of MotorArray, so we don't do that here.
+    print("motor_homing.py is intended to be used via core.CoreController.")
+

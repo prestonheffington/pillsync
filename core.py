@@ -21,27 +21,21 @@ Later:
 from typing import Optional, Dict
 
 from functions.motor_array import MotorArray, MotorLimitReached
-from functions.motor_homing import home_all_motors
+from functions.motor_homing import home_all_motors as _home_all_motors
 from functions.piezo_alarm import alarm as piezo_alarm
 from functions.neopixel_alarm import alarm_flash as neopixel_alarm
 
 
 class CoreController:
-    """
-    High-level hardware controller for PillSync.
-
-    Responsibilities:
-    - Own the MotorArray instance
-    - Expose simple methods for:
-        - dispensing
-        - homing
-        - alarms (buzzer + neopixel)
-    - (Later) fingerprint verification hooks
-    """
-
     def __init__(self):
         # Single MotorArray instance for the entire app
-        self.motor_array = MotorArray()
+        # Wrap in try/except so UI can still run even if I2C is not available
+        try:
+            self.motor_array = MotorArray()
+        except OSError as e:
+            print(f"WARN: MotorArray initialization failed: {e}")
+            self.motor_array = None
+
 
     # ------------------------------------------------------------------
     # DISPENSING
@@ -60,12 +54,18 @@ class CoreController:
         :param direction: +1 or -1 (normally +1 for forward dispense)
         :return: dict with status info (for logging / UI feedback)
         """
+
         result = {
             "success": False,
             "error": None,
             "motor_id": motor_id,
             "user_id": user_id,
         }
+
+        if self.motor_array is None:
+            result["error"] = "MotorArray not initialized (I2C unavailable)."
+            return result
+
 
         try:
             self.motor_array.step_motor(
@@ -91,8 +91,17 @@ class CoreController:
         """
         Home all motors (one at a time), resetting their internal call counts.
         """
-        # motor_homing.home_all_motors already resets the counters
-        return home_all_motors(direction=direction)
+        if self.motor_array is None:
+            print("WARN: home_all_motors called but MotorArray is not initialized.")
+            # Return False for all motors to indicate failure
+            return {mid: False for mid in range(1, 7)}
+
+        return _home_all_motors(
+            motor_array=self.motor_array,
+            direction=direction,
+        )
+
+
 
     # ------------------------------------------------------------------
     # ALARMS (BUZZER + NEOPIXEL)
