@@ -1,0 +1,48 @@
+[4.0K]  .
+├── [ 16K]  app.py
+├── [ 10K]  app.py.backup
+├── [7.1K]  app.py.bak
+├── [1.6K]  app_sim_test.py
+├── [4.0K]  data
+│   ├── [  84]  credentials.json
+│   ├── [ 16K]  pillsync_backup.db
+│   ├── [ 16K]  pillsync.db
+│   └── [ 555]  schema.sql
+├── [3.5K]  fingerprint.py
+├── [4.0K]  functions
+│   ├── [1.0K]  buzzer_sim.py
+│   ├── [3.5K]  fingerprint.py
+│   ├── [4.0K]  finger_print_tests
+│   │   ├── [ 755]  brute_force_password.py
+│   │   ├── [1.1K]  print_test.py
+│   │   └── [ 425]  test2.py
+│   ├── [1.2K]  LEDalert_sim.py
+│   ├── [ 361]  LEDtest.py
+│   ├── [1.3K]  notification.py
+│   ├── [ 685]  servermotor_sim.py
+│   ├── [3.8K]  stepper_sim.py
+│   ├── [4.0K]  stepper-tests
+│   │   ├── [ 10K]  stepper_extended_test.py
+│   │   └── [2.9K]  stepper_single_test.py
+│   └── [ 19K]  ui.py
+├── [4.0K]  instance
+├── [1.1K]  liscense.txt
+├── [ 297]  nohup.out
+├── [1.3K]  notification.py
+├── [ 30K]  package-list.txt
+├── [   0]  pillsync_structure.txt
+├── [3.5K]  README.txt
+├── [ 567]  requirements.txt
+├── [4.0K]  static
+│   └── [ 65K]  background.png
+└── [4.0K]  templates
+    ├── [5.8K]  dashboard.html
+    ├── [ 962]  edit_user.html
+    ├── [ 585]  index.html
+    ├── [2.8K]  login.html
+    ├── [2.6K]  prescription_form.html
+    ├── [4.7K]  prescriptions.html
+    ├── [1.8K]  update_credentials.html
+    └── [ 379]  users.html
+
+8 directories, 38 files

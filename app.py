@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, g
+from core import perform_dispense_simple, alert_due_simple
 import json
 import os
 import hashlib
@@ -7,6 +8,8 @@ import sqlite3
 import subprocess
 import threading
 from datetime import datetime
+
+IDLE_LIMIT = 900  # 15 minutes (in seconds)
 
 app = Flask(__name__)
 app.secret_key = "your_secret_key"
@@ -55,21 +58,21 @@ def save_credentials(username, password):
 
 
 @app.before_request
-def check_session_timeout():
-    """Check if the session has expired due to inactivity."""
-    if "user" in session:
-        last_active = session.get("last_active", time.time())
-        idle = time.time() - last_active
-        if idle > SESSION_TIMEOUT:
-            print(f"[SESSION] Timeout: idle={idle:.1f}s > {SESSION_TIMEOUT}s. Logging out.")
-            session.pop("user", None)
-            session.pop("user_id", None)
-            return redirect(url_for("login"))
-        session["last_active"] = time.time()
-    else:
-        # uncomment if you want to see every unauth'd hit:
-        # print("[SESSION] No user in session")
-        pass
+def enforce_session_timeout():
+    if "user" not in session:
+        return
+
+    now = time.time()
+    last = session.get("last_activity", now)
+    idle = now - last
+
+    if idle > IDLE_LIMIT:
+        app.logger.info(f"[SESSION] Timeout: idle={idle:.1f}s > {IDLE_LIMIT}s. Logging out.")
+        session.clear()
+        return redirect(url_for("login"))
+
+    session["last_activity"] = now
+
 
 
 @app.teardown_appcontext
@@ -382,18 +385,26 @@ def add_prescription():
     return redirect(url_for("get_prescriptions"))
 
 
+from core import perform_dispense_simple  # add this near the top of app.py
+
 @app.route("/dispense", methods=["POST"])
 def dispense():
     if "user" not in session:
         return {"success": False, "error": "Unauthorized"}, 401
 
     try:
-        result = subprocess.run(["python3", "functions/servermotor_sim.py"], check=True, capture_output=True, text=True)
-        print("DEBUG: Dispense Output ->", result.stdout)  # Log output
-        return {"success": True, "message": result.stdout.strip()}
-    except subprocess.CalledProcessError as e:
-        print("ERROR: Dispense failed ->", e.stderr)  # Log error
-        return {"success": False, "error": "Failed to dispense"}
+        success = perform_dispense_simple()  # 🚀 Direct call through core.py
+
+        if success:
+            print("DEBUG: Dispense successful.")
+            return {"success": True, "message": "Dispense completed successfully."}
+        else:
+            print("ERROR: Dispense failed (motor returned False).")
+            return {"success": False, "error": "Dispense failed at hardware level."}
+
+    except Exception as e:
+        print("ERROR: Dispense route crashed ->", e)
+        return {"success": False, "error": f"Exception occurred: {e}"}
 
 
 # --- device / screen communication endpoints ---
