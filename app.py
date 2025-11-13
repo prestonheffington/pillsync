@@ -81,44 +81,53 @@ def close_connection(exception):
     if db is not None:
         db.close()
 
-
 def check_medication_schedule():
     print("🔄 Background alert system started...")
 
     with app.app_context():  # Ensures Flask context for DB access
         while True:
             try:
-                now = datetime.now().strftime("%H:%M")  # Current time
-                now_dt = datetime.strptime(now, "%H:%M")  # Convert to datetime
-                print(f"⏳ Checking for scheduled medications at {now}")
+                # Current time as string and datetime
+                now_str = datetime.now().strftime("%H:%M")
+                now_dt = datetime.strptime(now_str, "%H:%M")
+                print(f"⏳ Checking for scheduled medications at {now_str}")
 
                 # Open a database connection
                 db = sqlite3.connect("data/pillsync.db")
                 db.row_factory = sqlite3.Row  # Allows dictionary-like row access
 
+                # TODO: adjust status filter if your schema uses a different value
                 medications = db.execute(
-                    "SELECT prescription_id, name, time_of_day FROM prescriptions WHERE status='Active'"
+                    "SELECT prescription_id, name, time_of_day "
+                    "FROM prescriptions "
+                    "WHERE status = 'Active'"
                 ).fetchall()
 
                 triggered = False  # Track if any alert should trigger
 
                 for med in medications:
-                    med_time_dt = datetime.strptime(med["time_of_day"], "%H:%M")  # Convert DB time
+                    med_time_str = med["time_of_day"]
+                    med_time_dt = datetime.strptime(med_time_str, "%H:%M")
                     time_difference = abs((now_dt - med_time_dt).total_seconds() / 60)
 
-                    print(f"🧐 Checking medication: {med['name']} scheduled for {med['time_of_day']} (Time difference: {time_difference} minutes)")
+                    print(
+                        f"🧐 Checking medication: {med['name']} "
+                        f"scheduled for {med_time_str} (Δ={time_difference:.1f} min)"
+                    )
 
                     if time_difference <= 15:
-                        print(f"✅ Triggering alert for {med['name']} at {now}")
+                        print(f"✅ Triggering alert for {med['name']} at {now_str}")
 
-                        # Run alert scripts
-                        subprocess.run(["python3", "functions/buzzer_sim.py"], check=True)
+                        # 🔔 Use core.py to run real alarms (piezo + neopixel)
+                        core.trigger_alarms(duration=30.0)
                         triggered = True
 
                         # 🔹 Mark the medication as "Dispensed" so it does not trigger again
                         db.execute(
-                            "UPDATE prescriptions SET status='Dispensed', last_dispensed=? WHERE prescription_id=?",
-                            (now, med["prescription_id"])
+                            "UPDATE prescriptions "
+                            "SET status = ?, last_dispensed = ? "
+                            "WHERE prescription_id = ?",
+                            ("Dispensed", datetime.now().isoformat(timespec="seconds"), med["prescription_id"]),
                         )
                         db.commit()
 
@@ -131,11 +140,6 @@ def check_medication_schedule():
             except Exception as e:
                 print(f"⚠ ERROR in background thread: {e}")
                 time.sleep(10)  # Prevent the thread from dying immediately
-
-
-# Start the alert thread
-# alert_thread = threading.Thread(target=check_medication_schedule, daemon=True)
-# alert_thread.start()
 
 
 @app.route("/", methods=["GET", "POST"])
