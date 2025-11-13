@@ -299,6 +299,27 @@ def dashboard():
         prescriptions=prescriptions
     )
 
+@app.route("/users")
+def users():
+    """
+    User Management page (2-user setup).
+
+    For now, this is a simple placeholder that:
+    - Shows two logical users
+    - Provides links into the prescriptions page (with ?user_id=...)
+    - Leaves fingerprint setup/delete as "coming soon"
+    """
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    # Placeholder 2-user setup; later this can come from the DB
+    demo_users = [
+        {"id": 1, "name": "User 1"},
+        {"id": 2, "name": "User 2"},
+    ]
+
+    return render_template("users.html", users=demo_users)
+
 @app.route("/demo")
 def demo():
     """

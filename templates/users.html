@@ -2,15 +2,130 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Users</title>
+    <title>PillSync User Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        /* lightweight styling to keep it readable even without full CSS */
+        body {
+            font-family: Arial, sans-serif;
+            background: #0b1220;
+            color: #f9fafb;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 40px;
+        }
+        .container {
+            background: rgba(15, 23, 42, 0.9);
+            border-radius: 16px;
+            padding: 24px 32px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            max-width: 720px;
+            width: 100%;
+        }
+        h1 {
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            font-size: 0.9rem;
+            color: #9ca3af;
+            margin-bottom: 16px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+        th, td {
+            padding: 8px 6px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #374151;
+        }
+        th {
+            text-align: left;
+            color: #d1d5db;
+        }
+        .btn {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: none;
+            font-size: 0.85rem;
+            text-decoration: none;
+            cursor: pointer;
+            background: #2563eb;
+            color: #f9fafb;
+        }
+        .btn:hover {
+            background: #1d4ed8;
+        }
+        .btn-secondary {
+            background: #4b5563;
+        }
+        .btn-secondary:hover {
+            background: #374151;
+        }
+        .nav-row {
+            margin-top: 16px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+        }
+        .nav-row a {
+            color: #93c5fd;
+            text-decoration: none;
+        }
+        .nav-row a:hover {
+            text-decoration: underline;
+        }
+        .coming-soon {
+            font-size: 0.8rem;
+            color: #9ca3af;
+        }
+    </style>
 </head>
 <body>
-    <h1>Users</h1>
-    <ul>
+<div class="container">
+    <h1>User Management</h1>
+    <div class="subtitle">
+        2-user demo setup. Each user can be linked to prescriptions and a fingerprint profile (future).
+    </div>
+
+    <table>
+        <thead>
+        <tr>
+            <th>User ID</th>
+            <th>Name</th>
+            <th>Prescriptions</th>
+            <th>Fingerprint</th>
+        </tr>
+        </thead>
+        <tbody>
         {% for user in users %}
-            <li>{{ user['user_id'] }} - {{ user['name'] }} ({{ user['birthdate'] }})</li>
+            <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.name }}</td>
+                <td>
+                    <!-- This will hit /prescriptions?user_id=...; route can start using that later -->
+                    <a href="{{ url_for('prescriptions', user_id=user.id) }}" class="btn">
+                        View / Manage
+                    </a>
+                </td>
+                <td>
+                    <span class="coming-soon">Setup / delete coming soon</span>
+                </td>
+            </tr>
         {% endfor %}
-    </ul>
+        </tbody>
+    </table>
+
+    <div class="nav-row">
+        <a href="{{ url_for('dashboard') }}">⬅ Back to Dashboard</a>
+        <a href="{{ url_for('demo') }}">Go to Demo Day</a>
+    </div>
+</div>
 </body>
 </html>
