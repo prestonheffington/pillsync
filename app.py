@@ -429,6 +429,43 @@ def dispense():
             "error": f"Exception occurred: {e}",
         }, 500
 
+@app.route("/home_motors", methods=["POST"])
+def home_motors():
+    """
+    Home all motors (7 x 320 steps in reverse) and reset call counters.
+
+    This will eventually be triggered by a 'Reset / Home All' button on
+    the dashboard or Demo Day page.
+    """
+    if "user" not in session:
+        return {"success": False, "error": "Unauthorized"}, 401
+
+    try:
+        results = core.home_all_motors(direction=-1)
+
+        # results is expected to be a dict like {1: True, 2: True, ...}
+        print(f"DEBUG: Home all motors results: {results}")
+
+        if all(results.values()):
+            return {
+                "success": True,
+                "message": "All motors homed successfully.",
+                "results": results,
+            }, 200
+        else:
+            return {
+                "success": False,
+                "error": "One or more motors failed to home.",
+                "results": results,
+            }, 500
+
+    except Exception as e:
+        print("ERROR: /home_motors route crashed ->", e)
+        return {
+            "success": False,
+            "error": f"Exception occurred: {e}",
+        }, 500
+
 
 
 # --- device / screen communication endpoints ---
