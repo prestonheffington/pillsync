@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, g
-from core import perform_dispense_simple, alert_due_simple
+from core import core
 import json
 import os
 import hashlib
@@ -385,26 +385,46 @@ def add_prescription():
     return redirect(url_for("get_prescriptions"))
 
 
-from core import perform_dispense_simple  # add this near the top of app.py
-
 @app.route("/dispense", methods=["POST"])
 def dispense():
     if "user" not in session:
         return {"success": False, "error": "Unauthorized"}, 401
 
-    try:
-        success = perform_dispense_simple()  # 🚀 Direct call through core.py
+    user_id = session.get("user_id")
 
-        if success:
-            print("DEBUG: Dispense successful.")
-            return {"success": True, "message": "Dispense completed successfully."}
+    # Optional motor_id from JSON body, default to 1 for now
+    payload = request.get_json(silent=True) or {}
+    try:
+        motor_id = int(payload.get("motor_id", 1))
+    except (TypeError, ValueError):
+        motor_id = 1
+
+    try:
+        result = core.dispense_slot(user_id=user_id, motor_id=motor_id)
+
+        if result.get("success"):
+            print(
+                f"DEBUG: Dispense successful for user_id={user_id}, motor_id={motor_id}"
+            )
+            return {
+                "success": True,
+                "message": "Dispense completed successfully.",
+            }, 200
         else:
-            print("ERROR: Dispense failed (motor returned False).")
-            return {"success": False, "error": "Dispense failed at hardware level."}
+            error_msg = result.get("error") or "Dispense failed at hardware level."
+            print(f"ERROR: Dispense failed -> {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg,
+            }, 500
 
     except Exception as e:
-        print("ERROR: Dispense route crashed ->", e)
-        return {"success": False, "error": f"Exception occurred: {e}"}
+        print("ERROR: /dispense route crashed ->", e)
+        return {
+            "success": False,
+            "error": f"Exception occurred: {e}",
+        }, 500
+
 
 
 # --- device / screen communication endpoints ---
