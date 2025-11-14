@@ -4,185 +4,178 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - PillSync</title>
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600&display=swap');
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        /* Demo Day Unified Style */
         body {
-            background-color: #1E3A5F;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #0b1220;
             background-image: url("/static/background.png");
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
             background-attachment: fixed;
-            font-family: 'Work Sans', sans-serif;
+
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
-            text-align: center;
-            padding: 30px;
+            padding: 40px 16px;
+            min-height: 100vh;
+            color: #f9fafb;
         }
-
-        .top-border, .bottom-border {
-            position: fixed;
-            width: 100%;
-            height: 8px;
-            background-color: #ff6a00;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-        }
-
-        .top-border { top: 0; }
-        .bottom-border { bottom: 0; }
 
         .header {
-            position: fixed;
-            top: 15px;
-            left: 20px;
-            color: white;
-            font-size: 24px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #f9fafb;
+            margin-bottom: 12px;
+            width: 100%;
+            max-width: 720px;
+        }
+
+        /* NAV ROW */
+        .nav-bar {
+            width: 100%;
+            max-width: 720px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .nav-link {
+            padding: 6px 16px;
+            border-radius: 999px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            background: rgba(15, 23, 42, 0.8);
+            color: #e5e7eb;
+            border: 1px solid rgba(55, 65, 81, 0.8);
+            transition: background 0.15s ease;
+        }
+        .nav-link:hover {
+            background: rgba(31, 41, 55, 0.9);
+        }
+
+        .nav-spacer {
+            margin-left: auto;
+        }
+
+        /* MAIN PANEL */
+        .demo-container {
+            background: rgba(15, 23, 42, 0.90);
+            border-radius: 16px;
+            padding: 28px 32px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            width: 100%;
+            max-width: 720px;
+        }
+
+        h2 {
+            margin-top: 0;
+            margin-bottom: 6px;
             font-weight: bold;
         }
 
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(15px);
-            border-radius: 12px;
-            padding: 25px;
-            width: 90%;
-            max-width: 600px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: space-between;
+        .subtitle {
+            font-size: 0.9rem;
+            color: #9ca3af;
+            margin-bottom: 24px;
         }
 
-        h2, h3 {
-            color: white;
-            margin-bottom: 15px;
+        /* SECTION HEADER */
+        .section-title {
+            font-size: 1.05rem;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #374151;
+            padding-bottom: 4px;
         }
 
+        /* MEDICATION LIST */
         .med-list {
             list-style: none;
             padding: 0;
-            margin-bottom: 20px;
+            margin: 0 0 20px 0;
         }
-
         .med-list li {
-            background: rgba(255, 255, 255, 0.2);
-            margin: 10px 0;
-            padding: 12px;
-            border-radius: 6px;
-            color: white;
-            font-weight: 500;
-            transition: transform 0.2s ease-in-out;
+            background: #111827;
+            border: 1px solid #374151;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 12px;
+            font-size: 0.9rem;
         }
 
-        .med-list li:hover {
-            transform: scale(1.05);
-        }
-
+        /* BUTTON ROW */
         .button-container {
             display: flex;
-            justify-content: center;
-            gap: 15px;
-            width: 100%;
-            margin-top: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 16px;
         }
 
-        .action-button {
-            background-color: #FF7F00;
-            color: white;
-            padding: 15px;
+        button {
             border: none;
+            border-radius: 999px;
+            padding: 10px 16px;
+            font-size: 0.9rem;
             cursor: pointer;
-            border-radius: 8px;
-            font-size: 16px;
+            background: #2563eb;
+            color: #f9fafb;
+            transition: background 0.15s ease, transform 0.05s ease;
             flex: 1;
-            min-width: 150px;
-            max-width: 200px;
-            height: 50px;
-            transition: background-color 0.3s ease-in-out, transform 0.2s ease-in-out;
-            text-align: center;
+            min-width: 160px;
         }
 
-        .action-button:hover {
-            background-color: #ff9a33;
-            transform: scale(1.05);
+        button:hover {
+            background: #1d4ed8;
         }
 
-        .dispense-button {
-            background-color: #28A745;
+        button:active {
+            transform: scale(0.97);
         }
 
-        .dispense-button:hover {
-            background-color: #218838;
+        .btn-green {
+            background: #28A745;
+        }
+        .btn-green:hover {
+            background: #218838;
         }
 
         @media (max-width: 500px) {
             .button-container {
                 flex-direction: column;
-                align-items: center;
-                gap: 10px;
             }
-
-            .action-button {
+            button {
                 width: 100%;
-                max-width: none;
             }
         }
-
-    .nav-bar {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 16px;
-    }
-    .nav-link {
-        padding: 6px 12px;
-        border-radius: 999px;
-        text-decoration: none;
-        font-size: 0.9rem;
-        background: rgba(15, 23, 42, 0.8);
-        color: #e5e7eb;
-        border: 1px solid rgba(55, 65, 81, 0.8);
-    }
-    .nav-link:hover {
-        background: rgba(31, 41, 55, 0.9);
-    }
-
     </style>
 </head>
+
 <body>
-    <div class="top-border"></div>
-    <div class="header">PillSync</div>
 
-        <!-- Navigation bar -->
-    <div class="nav-bar" style="margin-bottom: 16px;">
-    <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
-    <a href="{{ url_for('get_users') }}" class="nav-link">Users</a>
-    <a href="{{ url_for('demo') }}" class="nav-link">Demo Day</a>
-    <a href="{{ url_for('logout') }}" class="nav-link" style="margin-left:auto;">Logout</a>
-</div>
+    <div class="header">PillSync Dashboard</div>
 
-    
+    <!-- Navigation Bar -->
+    <div class="nav-bar">
+        <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+        <a href="{{ url_for('get_users') }}" class="nav-link">Users</a>
+        <a href="{{ url_for('demo') }}" class="nav-link">Demo Day</a>
+        <a href="{{ url_for('logout') }}" class="nav-link nav-spacer">Logout</a>
+    </div>
 
-    <div class="glass-panel">
+    <!-- Main Panel -->
+    <div class="demo-container">
         <h2>Welcome back, <span id="username">{{ user_name }}</span></h2>
+        <div class="subtitle">Here’s what’s coming up next.</div>
 
-        <h3>Upcoming Medications</h3>
+        <div class="section-title">Upcoming Medications</div>
         <ul class="med-list">
             {% if prescriptions %}
                 {% for prescription in prescriptions %}
-                    <li>{{ prescription.name }} - {{ prescription.dosage }} ({{ prescription.time_of_day }})</li>
+                    <li>{{ prescription.name }} – {{ prescription.dosage }} ({{ prescription.time_of_day }})</li>
                 {% endfor %}
             {% else %}
                 <li>No upcoming medications</li>
@@ -190,45 +183,35 @@
         </ul>
 
         <div class="button-container">
-            <a href="/prescriptions">
-                <button class="action-button">View Prescriptions</button>
-            </a>
-            <a href="/prescription_form">
-                <button class="action-button">Add Prescription</button>
-            </a>
-            <button class="action-button dispense-button" onclick="dispenseMedication()">Dispense Medication</button>
+            <a href="/prescriptions"><button>View Prescriptions</button></a>
+            <a href="/prescription_form"><button>Add Prescription</button></a>
+            <button class="btn-green" onclick="dispenseMedication()">Dispense Medication</button>
         </div>
     </div>
-
-    <div class="bottom-border"></div>
 
     <script>
         function dispenseMedication() {
             fetch('/dispense', { method: 'POST' })
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
-                    alert("Medication dispensed successfully!");
-                } else {
-                    alert("Error dispensing medication.");
-                }
+                alert(data.success ? "Medication dispensed successfully!" : "Error dispensing medication.");
             });
         }
 
+        // Auto logout logic
         let timeout;
-
         function resetTimer() {
             clearTimeout(timeout);
             timeout = setTimeout(() => {
                 window.location.href = "/logout";
-            }, 900000);  // 15 minutes
+            }, 900000);
         }
-
         window.onload = resetTimer;
         document.onmousemove = resetTimer;
         document.onkeypress = resetTimer;
         document.onclick = resetTimer;
         document.onscroll = resetTimer;
     </script>
+
 </body>
 </html>

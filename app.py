@@ -1,9 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, g
 from core import core
-from functions.fingerprint_sensor import (
-    enroll_fingerprint_at_location,
-    delete_fingerprint_at_location,
-)
+from functions.fingerprint import fp
 import json
 import os
 import hashlib
@@ -327,11 +324,11 @@ def enroll_fingerprint(user_id):
 
     print(f"[INFO] Enrolling fingerprint for user_id={user_id} at slot={location}...")
 
-    success = False
     try:
         success = enroll_fingerprint_at_location(location)
     except Exception as e:
         print(f"[ERROR] enroll_fingerprint_at_location crashed for user {user_id}: {e}")
+        success = False
 
     db = get_db()
 
@@ -372,14 +369,19 @@ def delete_fingerprint(user_id):
         print(f"[INFO] No fingerprint to delete for user_id={user_id}")
         return redirect(url_for("get_users"))
 
-    location = int(row["fingerprint_data"])
+    try:
+        location = int(row["fingerprint_data"])
+    except (ValueError, TypeError):
+        print(f"[WARN] Invalid fingerprint_data for user_id={user_id}, skipping delete.")
+        return redirect(url_for("get_users"))
+
     print(f"[INFO] Deleting fingerprint for user_id={user_id} from slot={location}...")
 
-    success = False
     try:
         success = delete_fingerprint_at_location(location)
     except Exception as e:
         print(f"[ERROR] delete_fingerprint_at_location crashed for user {user_id}: {e}")
+        success = False
 
     if success:
         try:
@@ -395,6 +397,7 @@ def delete_fingerprint(user_id):
         print(f"[WARN] Fingerprint delete failed for user_id={user_id}")
 
     return redirect(url_for("get_users"))
+
 
 
 @app.route("/users/add", methods=["POST"])
