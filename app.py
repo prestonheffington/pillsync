@@ -1,5 +1,9 @@
 from flask import Flask, render_template, request, redirect, url_for, session, g
 from core import core
+from functions.fingerprint_sensor import (
+    enroll_fingerprint_at_location,
+    delete_fingerprint_at_location,
+)
 import json
 import os
 import hashlib
@@ -306,31 +310,90 @@ def get_users():
 @app.route("/users/<int:user_id>/fingerprint/enroll", methods=["POST"])
 def enroll_fingerprint(user_id):
     """
-    Stub: start fingerprint enrollment for a user.
+    Enroll a fingerprint for the given user.
 
-    Later this will call into a real fingerprint library, but for now it's just
-    a placeholder endpoint so the UI and routing are complete.
+    - Uses user_id as the fingerprint template location (slot).
+      This assumes user_id <= 127 (sensor capacity).
+    - On success, stores the slot in users.fingerprint_data.
     """
     if "user" not in session:
         return redirect(url_for("login"))
 
-    print(f"[DEBUG] Fingerprint enrollment requested for user_id={user_id}")
-    # TODO: integrate actual fingerprint enrollment flow
+    # Map user_id to a sensor slot. For our 2-user demo this is safe.
+    location = user_id
+    if not (1 <= location <= 127):
+        print(f"[ERROR] user_id {user_id} is out of valid fingerprint slot range (1–127).")
+        return redirect(url_for("get_users"))
+
+    print(f"[INFO] Enrolling fingerprint for user_id={user_id} at slot={location}...")
+
+    success = False
+    try:
+        success = enroll_fingerprint_at_location(location)
+    except Exception as e:
+        print(f"[ERROR] enroll_fingerprint_at_location crashed for user {user_id}: {e}")
+
+    db = get_db()
+
+    if success:
+        try:
+            db.execute(
+                "UPDATE users SET fingerprint_data = ? WHERE user_id = ?;",
+                (location, user_id),
+            )
+            db.commit()
+            print(f"[INFO] Stored fingerprint slot {location} in DB for user_id={user_id}")
+        except Exception as e:
+            print(f"[ERROR] Failed to update fingerprint_data in DB for user_id={user_id}: {e}")
+    else:
+        print(f"[WARN] Fingerprint enrollment failed for user_id={user_id}")
+
     return redirect(url_for("get_users"))
 
 
 @app.route("/users/<int:user_id>/fingerprint/delete", methods=["POST"])
 def delete_fingerprint(user_id):
     """
-    Stub: delete fingerprint data for a user.
+    Delete the fingerprint associated with a user.
 
-    Later this will update DB and sensor storage. For now, it's a no-op stub.
+    - Reads users.fingerprint_data as the sensor slot.
+    - Deletes from the sensor and clears the DB field.
     """
     if "user" not in session:
         return redirect(url_for("login"))
 
-    print(f"[DEBUG] Fingerprint deletion requested for user_id={user_id}")
-    # TODO: integrate actual fingerprint delete logic
+    db = get_db()
+    row = db.execute(
+        "SELECT fingerprint_data FROM users WHERE user_id = ?;",
+        (user_id,),
+    ).fetchone()
+
+    if not row or row["fingerprint_data"] is None:
+        print(f"[INFO] No fingerprint to delete for user_id={user_id}")
+        return redirect(url_for("get_users"))
+
+    location = int(row["fingerprint_data"])
+    print(f"[INFO] Deleting fingerprint for user_id={user_id} from slot={location}...")
+
+    success = False
+    try:
+        success = delete_fingerprint_at_location(location)
+    except Exception as e:
+        print(f"[ERROR] delete_fingerprint_at_location crashed for user {user_id}: {e}")
+
+    if success:
+        try:
+            db.execute(
+                "UPDATE users SET fingerprint_data = NULL WHERE user_id = ?;",
+                (user_id,),
+            )
+            db.commit()
+            print(f"[INFO] Cleared fingerprint_data in DB for user_id={user_id}")
+        except Exception as e:
+            print(f"[ERROR] Failed to clear fingerprint_data in DB for user_id={user_id}: {e}")
+    else:
+        print(f"[WARN] Fingerprint delete failed for user_id={user_id}")
+
     return redirect(url_for("get_users"))
 
 
