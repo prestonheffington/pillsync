@@ -24,7 +24,8 @@ from functions.motor_array import MotorArray, MotorLimitReached
 from functions.motor_homing import home_all_motors as _home_all_motors
 from functions.piezo_alarm import alarm as piezo_alarm
 from functions.neopixel_alarm import alarm_flash as neopixel_alarm
-
+from config import FINGERPRINT_REQUIRED
+from functions.fingerprint import fp
 
 class CoreController:
     def __init__(self):
@@ -40,49 +41,112 @@ class CoreController:
     # ------------------------------------------------------------------
     # DISPENSING
     # ------------------------------------------------------------------
+    from typing import Optional, Dict
+    from config import FINGERPRINT_REQUIRED
+
+    # Import your fingerprint manager HOWEVER you expose it.
+    # Adjust this path to match your project structure.
+    try:
+        from functions.fingerprint import fingerprint_manager
+    except Exception:
+        fingerprint_manager = None
+        print("[WARN] Fingerprint manager not available; running in demo-safe mode.")
+
+
+    def secure_dispense(
+            self,
+            user_id: Optional[int],
+            motor_id: int,
+            direction: int = 1,
+        ) -> Dict[str, object]:
+        """
+        SECURITY WRAPPER for dispensing.
+        - If fingerprint enforcement is ON, user must verify before dispensing.
+        - If OFF (demo day), dispense proceeds immediately.
+
+        Returns a unified status dict identical to dispense_slot().
+        """
+
+        # ---------------------------------------------------------
+        # 1. Fingerprint check (skipped on demo day)
+        # ---------------------------------------------------------
+        if FINGERPRINT_REQUIRED:
+
+            if fingerprint_manager is None:
+                return {
+                    "success": False,
+                    "error": "Fingerprint system unavailable.",
+                    "motor_id": motor_id,
+                    "user_id": user_id,
+                }
+
+            ok = fingerprint_manager.verify_for_dispense(user_id=user_id)
+
+            if not ok:
+                return {
+                    "success": False,
+                    "error": "Fingerprint verification failed.",
+                    "motor_id": motor_id,
+                    "user_id": user_id,
+                 }
+
+        # ---------------------------------------------------------
+        # 2. Call actual dispense logic
+        # ---------------------------------------------------------
+        return self.dispense_slot(
+            user_id=user_id,
+            motor_id=motor_id,
+            direction=direction,
+        )
+
+
+
+    ###############################################################
+    #  ORIGINAL DISPENSE FUNCTION (unchanged)
+    ###############################################################
     def dispense_slot(
-        self,
-        user_id: Optional[int],
-        motor_id: int,
-        direction: int = 1,
-    ) -> Dict[str, object]:
-        """
-        Dispense a single dose from the given motor/slot.
+            self,
+            user_id: Optional[int],
+            motor_id: int,
+            direction: int = 1,
+        ) -> Dict[str, object]:
+            """
+            Dispense a single dose from the given motor/slot.
 
-        :param user_id: ID of the user this dispense is for (can be None for demo mode)
-        :param motor_id: motor number 1–6
-        :param direction: +1 or -1 (normally +1 for forward dispense)
-        :return: dict with status info (for logging / UI feedback)
-        """
+            :param user_id: ID of the user this dispense is for (can be None for demo mode)
+            :param motor_id: motor number 1–6
+            :param direction: +1 or -1 (normally +1 for forward dispense)
+            :return: dict with status info (for logging / UI feedback)
+            """
 
-        result = {
-            "success": False,
-            "error": None,
-            "motor_id": motor_id,
-            "user_id": user_id,
-        }
+            result = {
+                "success": False,
+                "error": None,
+                "motor_id": motor_id,
+                "user_id": user_id,
+            }
 
-        if self.motor_array is None:
-            result["error"] = "MotorArray not initialized (I2C unavailable)."
+            if self.motor_array is None:
+                result["error"] = "MotorArray not initialized (I2C unavailable)."
+                return result
+
+            try:
+                self.motor_array.step_motor(
+                    motor_id=motor_id,
+                    direction=direction,
+                    # use defaults in MotorArray: whole_steps=WHOLESTEPS_PER_CALL
+                    enforce_limits=True,
+                )
+                result["success"] = True
+
+            except MotorLimitReached as e:
+                result["error"] = str(e)
+
+            except Exception as e:  # catch-all for hardware errors
+                result["error"] = f"Unexpected motor error: {e}"
+
             return result
 
-
-        try:
-            self.motor_array.step_motor(
-                motor_id=motor_id,
-                direction=direction,
-                # use defaults in MotorArray: whole_steps=WHOLESTEPS_PER_CALL
-                enforce_limits=True,
-            )
-            result["success"] = True
-
-        except MotorLimitReached as e:
-            result["error"] = str(e)
-
-        except Exception as e:  # catch-all for hardware errors
-            result["error"] = f"Unexpected motor error: {e}"
-
-        return result
 
     # ------------------------------------------------------------------
     # HOMING

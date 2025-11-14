@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 """
 Motor Array Controller for PillSyncOS
-Controls 6x 28BYJ-48 stepper motors using two MCP23017 expanders.
+Controls 28BYJ-48 stepper motors using one or two MCP23017 expanders.
 
-BOARD 1 (I2C addr 0x20)
-  Motor 1 → GPA0–GPA3
-  Motor 2 → GPA4–GPA7
-  Motor 3 → GPB0–GPB3
+Auto-detects which expanders are present:
+ - Board 1 → I2C addr 0x20
+ - Board 2 → I2C addr 0x21 (only used if physically present)
 
-BOARD 2 (I2C addr 0x21)
-  Motor 4 → GPA0–GPA3
-  Motor 5 → GPA4–GPA7
-  Motor 6 → GPB0–GPB3
+Each motor uses one nibble (4 bits):
+  GPA0–3, GPA4–7, GPB0–3 per board.
 
 Each dispense call:
  • Rotates exactly 320 "whole steps"
@@ -28,18 +25,18 @@ IODIRB = 0x01
 OLATA  = 0x14
 OLATB  = 0x15
 
-# Two expanders
+# Two expanders (board 2 optional)
 ADDR_BOARD1 = 0x20
 ADDR_BOARD2 = 0x21
 
-# Half-step sequence (same as your working test script)
+# Half-step sequence from your working test script
 SEQ = [
     0b0001, 0b0011, 0b0010, 0b0110,
     0b0100, 0b1100, 0b1000, 0b1001
 ]
 
-# Motor mapping (logical motor → board/port/nibble)
-MOTOR_MAP = {
+# Master motor map template (we filter this after I2C detection)
+MOTOR_MAP_TEMPLATE = {
     1: {"addr": ADDR_BOARD1, "port": "A", "shift": 0},
     2: {"addr": ADDR_BOARD1, "port": "A", "shift": 4},
     3: {"addr": ADDR_BOARD1, "port": "B", "shift": 0},
@@ -62,31 +59,58 @@ class MotorLimitReached(Exception):
 class MotorArray:
     def __init__(self, bus_num: int = 1):
         self.bus = SMBus(bus_num)
-        self.call_counts = {mid: 0 for mid in MOTOR_MAP}
+
+        # 1) Detect which expanders exist
+        self._detect_expanders()
+
+        # 2) Build filtered motor map
+        self.motor_map = {
+            mid: cfg for mid, cfg in MOTOR_MAP_TEMPLATE.items()
+            if cfg["addr"] in self.detected_addrs
+        }
+
+        # 3) Initialize call counters ONLY for detected motors
+        self.call_counts = {mid: 0 for mid in self.motor_map}
+
+        # 4) Initialize detected expanders
         self._init_expanders()
+
+        print(f"[MotorArray] Detected expanders: {self.detected_addrs}")
+        print(f"[MotorArray] Active motors: {list(self.motor_map.keys())}")
+
+    # -------------------------
+    # Expander detection
+    # -------------------------
+    def _detect_expanders(self):
+        """Detect which MCP23017 expanders are physically present."""
+        self.detected_addrs = []
+        for addr in [ADDR_BOARD1, ADDR_BOARD2]:
+            try:
+                self.bus.write_byte(addr, 0x00)  # probe
+                self.detected_addrs.append(addr)
+            except:
+                pass
 
     # -------------------------
     # Expander setup
     # -------------------------
     def _init_expanders(self):
-        used_addrs = {cfg["addr"] for cfg in MOTOR_MAP.values()}
-        for addr in used_addrs:
-            # Set both ports as outputs
+        """Initialize only detected expanders."""
+        for addr in self.detected_addrs:
             self.bus.write_byte_data(addr, IODIRA, 0x00)
             self.bus.write_byte_data(addr, IODIRB, 0x00)
-            # Coils off
             self.bus.write_byte_data(addr, OLATA, 0x00)
             self.bus.write_byte_data(addr, OLATB, 0x00)
 
     # -------------------------
-    # Internal low-level helpers
+    # Low-level helpers
     # -------------------------
     def _write_port(self, addr, port, value):
         reg = OLATA if port == "A" else OLATB
         self.bus.write_byte_data(addr, reg, value & 0xFF)
 
     def _write_coils_motor(self, motor_id, pattern):
-        cfg = MOTOR_MAP[motor_id]
+        cfg = self.motor_map[motor_id]
         addr = cfg["addr"]
         port = cfg["port"]
         shift = cfg["shift"]
@@ -94,7 +118,7 @@ class MotorArray:
         # Place the 4-bit pattern into the correct nibble
         nibble_val = (pattern & 0x0F) << shift
 
-        # Only one motor runs at a time → safe to zero other nibble
+        # Write to MCP23017
         self._write_port(addr, port, nibble_val)
 
     def _coils_off_motor(self, motor_id):
@@ -121,6 +145,9 @@ class MotorArray:
         delay: float = 0.003,
         enforce_limits: bool = True,
     ):
+        if motor_id not in self.motor_map:
+            raise ValueError(f"Motor {motor_id} not available on detected hardware")
+
         if enforce_limits and self.call_counts[motor_id] >= MAX_CALLS_PER_MOTOR:
             raise MotorLimitReached(
                 f"Motor {motor_id} has reached max {MAX_CALLS_PER_MOTOR} calls."
@@ -134,7 +161,6 @@ class MotorArray:
                 pattern = SEQ[idx]
                 self._write_coils_motor(motor_id, pattern)
                 time.sleep(delay)
-
                 idx = (idx + 1) % len(SEQ) if direction >= 0 else (idx - 1) % len(SEQ)
 
         finally:
@@ -144,8 +170,7 @@ class MotorArray:
             self.call_counts[motor_id] += 1
 
     def coils_off_all(self):
-        addrs = {cfg["addr"] for cfg in MOTOR_MAP.values()}
-        for addr in addrs:
+        for addr in self.detected_addrs:
             self.bus.write_byte_data(addr, OLATA, 0x00)
             self.bus.write_byte_data(addr, OLATB, 0x00)
 
