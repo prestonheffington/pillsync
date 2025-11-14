@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PillSync Demo Day</title>
+    {% if url_for %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    {% endif %}
+    <style>
+        /* Fallback lightweight styling in case styles.css isn't present */
+        body {
+            font-family: Arial, sans-serif;
+            background: #0b1220;
+            color: #f9fafb;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .demo-container {
+            background: rgba(15, 23, 42, 0.9);
+            border-radius: 16px;
+            padding: 24px 32px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            max-width: 720px;
+            width: 100%;
+        }
+        h1 {
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            font-size: 0.9rem;
+            color: #9ca3af;
+            margin-bottom: 16px;
+        }
+        .section-title {
+            margin-top: 16px;
+            margin-bottom: 8px;
+            font-size: 1.05rem;
+            border-bottom: 1px solid #374151;
+            padding-bottom: 4px;
+        }
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 8px 14px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background: #2563eb;
+            color: #f9fafb;
+            transition: background 0.15s ease, transform 0.05s ease;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        button:active {
+            transform: scale(0.97);
+        }
+        .btn-secondary {
+            background: #4b5563;
+        }
+        .btn-secondary:hover {
+            background: #374151;
+        }
+        .status-box {
+            margin-top: 16px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            background: #111827;
+            border: 1px solid #374151;
+            min-height: 32px;
+            white-space: pre-line;
+        }
+        .nav-row {
+            margin-top: 16px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+        }
+        .nav-row a {
+            color: #93c5fd;
+            text-decoration: none;
+        }
+        .nav-row a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+<div class="demo-container">
+    <h1>PillSync Demo Day</h1>
+    <div class="subtitle">
+        Run hardware actions on demand for demo/testing.
+        Fingerprint is bypassed here – normal security still applies elsewhere.
+    </div>
+
+    <!-- Alarms section -->
+    <div class="section-title">Alarms</div>
+    <div class="button-row">
+        <button id="btn-demo-alarms">Run Alarm Test (30s)</button>
+    </div>
+
+    <!-- Motors section -->
+    <div class="section-title">Dispense (Demo Mode)</div>
+    <div class="button-row">
+        <button class="btn-dispense" data-motor="1">Dispense Slot 1</button>
+        <button class="btn-dispense" data-motor="2">Dispense Slot 2</button>
+        <button class="btn-dispense" data-motor="3">Dispense Slot 3</button>
+        <button class="btn-dispense" data-motor="4">Dispense Slot 4</button>
+        <button class="btn-dispense" data-motor="5">Dispense Slot 5</button>
+        <button class="btn-dispense" data-motor="6">Dispense Slot 6</button>
+    </div>
+
+    <!-- Homing section -->
+    <div class="section-title">Maintenance</div>
+    <div class="button-row">
+        <button id="btn-home-all" class="btn-secondary">Home All Motors</button>
+    </div>
+
+    <!-- Status / output -->
+    <div id="demo-status" class="status-box">
+        Ready.
+    </div>
+
+    <div class="nav-row">
+        <a href="{{ url_for('dashboard') }}">⬅ Back to Dashboard</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
+    </div>
+</div>
+
+<script>
+    function setStatus(message) {
+        const box = document.getElementById("demo-status");
+        box.textContent = message;
+    }
+
+    async function postJSON(url, bodyObj) {
+        try {
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(bodyObj || {})
+            });
+            const data = await res.json().catch(() => ({}));
+            return { ok: res.ok, data };
+        } catch (err) {
+            return { ok: false, data: { error: err.toString() } };
+        }
+    }
+
+    // Alarm test
+    document.getElementById("btn-demo-alarms")?.addEventListener("click", async () => {
+        setStatus("Triggering alarms (this may block for ~30s)...");
+        const result = await postJSON("{{ url_for('demo_alarms') }}");
+        if (result.ok && result.data.success) {
+            setStatus("✅ " + (result.data.message || "Alarms completed."));
+        } else {
+            setStatus("❌ Alarm error: " + (result.data.error || "Unknown error"));
+        }
+    });
+
+    // Dispense buttons
+    document.querySelectorAll(".btn-dispense").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            const motorId = btn.getAttribute("data-motor");
+            setStatus(`Dispensing from slot ${motorId}...`);
+            const result = await postJSON("{{ url_for('dispense') }}", { motor_id: motorId });
+
+            if (result.ok && result.data.success) {
+                setStatus(`✅ Dispense from slot ${motorId} succeeded.`);
+            } else {
+                setStatus(`❌ Dispense error (slot ${motorId}): ` + (result.data.error || "Unknown error"));
+            }
+        });
+    });
+
+    // Home all motors
+    document.getElementById("btn-home-all")?.addEventListener("click", async () => {
+        setStatus("Homing all motors (7 x 320 steps each)...");
+        const result = await postJSON("{{ url_for('home_motors') }}");
+
+        if (result.ok && result.data.success) {
+            setStatus("✅ All motors homed successfully.");
+        } else {
+            let extra = "";
+            if (result.data && result.data.results) {
+                extra = " Results: " + JSON.stringify(result.data.results);
+            }
+            setStatus("❌ Homing error: " + (result.data.error || "Unknown error") + extra);
+        }
+    });
+</script>
+</body>
+</html>
+

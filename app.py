@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, g
-from core import perform_dispense_simple, alert_due_simple
+from core import core
+from functions.fingerprint import fp
 import json
 import os
 import hashlib
@@ -81,44 +82,53 @@ def close_connection(exception):
     if db is not None:
         db.close()
 
-
 def check_medication_schedule():
     print("🔄 Background alert system started...")
 
     with app.app_context():  # Ensures Flask context for DB access
         while True:
             try:
-                now = datetime.now().strftime("%H:%M")  # Current time
-                now_dt = datetime.strptime(now, "%H:%M")  # Convert to datetime
-                print(f"⏳ Checking for scheduled medications at {now}")
+                # Current time as string and datetime
+                now_str = datetime.now().strftime("%H:%M")
+                now_dt = datetime.strptime(now_str, "%H:%M")
+                print(f"⏳ Checking for scheduled medications at {now_str}")
 
                 # Open a database connection
                 db = sqlite3.connect("data/pillsync.db")
                 db.row_factory = sqlite3.Row  # Allows dictionary-like row access
 
+                # TODO: adjust status filter if your schema uses a different value
                 medications = db.execute(
-                    "SELECT prescription_id, name, time_of_day FROM prescriptions WHERE status='Active'"
+                    "SELECT prescription_id, name, time_of_day "
+                    "FROM prescriptions "
+                    "WHERE status = 'Active'"
                 ).fetchall()
 
                 triggered = False  # Track if any alert should trigger
 
                 for med in medications:
-                    med_time_dt = datetime.strptime(med["time_of_day"], "%H:%M")  # Convert DB time
+                    med_time_str = med["time_of_day"]
+                    med_time_dt = datetime.strptime(med_time_str, "%H:%M")
                     time_difference = abs((now_dt - med_time_dt).total_seconds() / 60)
 
-                    print(f"🧐 Checking medication: {med['name']} scheduled for {med['time_of_day']} (Time difference: {time_difference} minutes)")
+                    print(
+                        f"🧐 Checking medication: {med['name']} "
+                        f"scheduled for {med_time_str} (Δ={time_difference:.1f} min)"
+                    )
 
                     if time_difference <= 15:
-                        print(f"✅ Triggering alert for {med['name']} at {now}")
+                        print(f"✅ Triggering alert for {med['name']} at {now_str}")
 
-                        # Run alert scripts
-                        subprocess.run(["python3", "functions/buzzer_sim.py"], check=True)
+                        # 🔔 Use core.py to run real alarms (piezo + neopixel)
+                        core.trigger_alarms(duration=30.0)
                         triggered = True
 
                         # 🔹 Mark the medication as "Dispensed" so it does not trigger again
                         db.execute(
-                            "UPDATE prescriptions SET status='Dispensed', last_dispensed=? WHERE prescription_id=?",
-                            (now, med["prescription_id"])
+                            "UPDATE prescriptions "
+                            "SET status = ?, last_dispensed = ? "
+                            "WHERE prescription_id = ?",
+                            ("Dispensed", datetime.now().isoformat(timespec="seconds"), med["prescription_id"]),
                         )
                         db.commit()
 
@@ -131,11 +141,6 @@ def check_medication_schedule():
             except Exception as e:
                 print(f"⚠ ERROR in background thread: {e}")
                 time.sleep(10)  # Prevent the thread from dying immediately
-
-
-# Start the alert thread
-# alert_thread = threading.Thread(target=check_medication_schedule, daemon=True)
-# alert_thread.start()
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -233,24 +238,7 @@ def logout():
     session.pop("user_id", None)
     return redirect(url_for("login"))
 
-
-@app.route("/users")
-def get_users():
-    db = get_db()
-    # exclude admin from the list view; tweak if you prefer
-    cursor = db.execute("SELECT * FROM users WHERE name != ?", ('admin',))
-    users = cursor.fetchall()
-
-    # device/screen client can request JSON via ?format=json
-    if request.args.get("format") == "json":
-        return [
-            {"user_id": u["user_id"], "name": u["name"], "birthdate": u["birthdate"]}
-            for u in users
-        ]
-    return render_template("users.html", users=users)
-
-
-@app.route("/edit_user/<int:user_id>", methods=["GET", "POST"])
+"""@app.route("/edit_user/<int:user_id>", methods=["GET", "POST"])
 def edit_user(user_id):
     # only admin can edit
     if session.get("user") != 'admin':
@@ -268,7 +256,7 @@ def edit_user(user_id):
         return redirect(url_for("get_users"))
 
     user_to_edit = db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone()
-    return render_template("edit_user.html", user=user_to_edit)
+    return render_template("edit_user.html", user=user_to_edit)"""
 
 
 @app.route("/dashboard")
@@ -296,6 +284,181 @@ def dashboard():
     )
 
 
+@app.route("/users")
+def get_users():
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    db = get_db()
+    rows = db.execute("SELECT * FROM users ORDER BY user_id ASC;").fetchall()
+
+    users = []
+    for row in rows:
+        users.append({
+            "id": row["user_id"],
+            "name": row["name"],
+            "birthdate": row["birthdate"],
+            "fingerprint": "Yes" if row["fingerprint_data"] else "No",
+        })
+
+    return render_template("users.html", users=users)
+
+
+@app.route("/users/<int:user_id>/fingerprint/enroll", methods=["POST"])
+def enroll_fingerprint(user_id):
+    """
+    Enroll a fingerprint for the given user.
+
+    - Uses user_id as the fingerprint template location (slot).
+      This assumes user_id <= 127 (sensor capacity).
+    - On success, stores the slot in users.fingerprint_data.
+    """
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    # Map user_id to a sensor slot. For our 2-user demo this is safe.
+    location = user_id
+    if not (1 <= location <= 127):
+        print(f"[ERROR] user_id {user_id} is out of valid fingerprint slot range (1–127).")
+        return redirect(url_for("get_users"))
+
+    print(f"[INFO] Enrolling fingerprint for user_id={user_id} at slot={location}...")
+
+    try:
+        success = enroll_fingerprint_at_location(location)
+    except Exception as e:
+        print(f"[ERROR] enroll_fingerprint_at_location crashed for user {user_id}: {e}")
+        success = False
+
+    db = get_db()
+
+    if success:
+        try:
+            db.execute(
+                "UPDATE users SET fingerprint_data = ? WHERE user_id = ?;",
+                (location, user_id),
+            )
+            db.commit()
+            print(f"[INFO] Stored fingerprint slot {location} in DB for user_id={user_id}")
+        except Exception as e:
+            print(f"[ERROR] Failed to update fingerprint_data in DB for user_id={user_id}: {e}")
+    else:
+        print(f"[WARN] Fingerprint enrollment failed for user_id={user_id}")
+
+    return redirect(url_for("get_users"))
+
+
+@app.route("/users/<int:user_id>/fingerprint/delete", methods=["POST"])
+def delete_fingerprint(user_id):
+    """
+    Delete the fingerprint associated with a user.
+
+    - Reads users.fingerprint_data as the sensor slot.
+    - Deletes from the sensor and clears the DB field.
+    """
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    db = get_db()
+    row = db.execute(
+        "SELECT fingerprint_data FROM users WHERE user_id = ?;",
+        (user_id,),
+    ).fetchone()
+
+    if not row or row["fingerprint_data"] is None:
+        print(f"[INFO] No fingerprint to delete for user_id={user_id}")
+        return redirect(url_for("get_users"))
+
+    try:
+        location = int(row["fingerprint_data"])
+    except (ValueError, TypeError):
+        print(f"[WARN] Invalid fingerprint_data for user_id={user_id}, skipping delete.")
+        return redirect(url_for("get_users"))
+
+    print(f"[INFO] Deleting fingerprint for user_id={user_id} from slot={location}...")
+
+    try:
+        success = delete_fingerprint_at_location(location)
+    except Exception as e:
+        print(f"[ERROR] delete_fingerprint_at_location crashed for user {user_id}: {e}")
+        success = False
+
+    if success:
+        try:
+            db.execute(
+                "UPDATE users SET fingerprint_data = NULL WHERE user_id = ?;",
+                (user_id,),
+            )
+            db.commit()
+            print(f"[INFO] Cleared fingerprint_data in DB for user_id={user_id}")
+        except Exception as e:
+            print(f"[ERROR] Failed to clear fingerprint_data in DB for user_id={user_id}: {e}")
+    else:
+        print(f"[WARN] Fingerprint delete failed for user_id={user_id}")
+
+    return redirect(url_for("get_users"))
+
+
+
+@app.route("/users/add", methods=["POST"])
+def add_user():
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    name = request.form.get("name", "").strip()
+    birthdate = request.form.get("birthdate", "").strip()
+
+    if not name or not birthdate:
+        print("[ERROR] Missing required fields for new user")
+        return redirect(url_for("get_users"))
+
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO users (name, birthdate) VALUES (?, ?);",
+            (name, birthdate),
+        )
+        db.commit()
+        print(f"[INFO] User added: {name}, {birthdate}")
+    except Exception as e:
+        print(f"[ERROR] add_user failed: {e}")
+
+    return redirect(url_for("get_users"))
+
+
+@app.route("/users/<int:user_id>/delete", methods=["POST"])
+def delete_user(user_id):
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    db = get_db()
+    try:
+        db.execute("DELETE FROM users WHERE user_id = ?;", (user_id,))
+        db.commit()
+        print(f"[INFO] User deleted: {user_id}")
+    except Exception as e:
+        print(f"[ERROR] delete_user failed: {e}")
+
+    return redirect(url_for("get_users"))
+
+
+@app.route("/demo")
+def demo():
+    """
+    Demo Day page.
+
+    - Protected by normal app login (session["user"])
+    - Will eventually expose:
+        - Trigger alarms on command
+        - Dispense on command (bypass fingerprint)
+        - Home all motors
+    """
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    return render_template("demo.html")
+
+
 @app.route("/debug_session")
 def debug_session():
     # ONLY for debugging; remove later
@@ -312,7 +475,7 @@ def debug_session():
 def get_prescriptions():
     db = get_db()
 
-    # JSON feed (for device/screen client) → return all (add auth later if needed)
+    # JSON feed (for device/screen client)
     if request.args.get("format") == "json":
         cursor = db.execute("SELECT * FROM prescriptions")
         prescriptions = cursor.fetchall()
@@ -326,31 +489,95 @@ def get_prescriptions():
                 "refill_date": p["refill_date"],
                 "dosage": p["dosage"],
                 "time_of_day": p["time_of_day"],
-                "status": p["status"]
-            } for p in prescriptions
+                "status": p["status"],
+            }
+            for p in prescriptions
         ]
 
-    # Web page → only current user's prescriptions
+    # Web page → login required
     if "user" not in session:
         return redirect(url_for("login"))
-    cursor = db.execute("SELECT * FROM prescriptions WHERE user_id = ?", (session["user_id"],))
-    prescriptions = cursor.fetchall()
-    return render_template("prescriptions.html", prescriptions=prescriptions)
+
+    # Optional user context from query string: /prescriptions?user_id=1
+    selected_user_id = request.args.get("user_id", type=int)
+
+    # Build SQL conditionally based on whether a user was selected
+    sql = "SELECT * FROM prescriptions"
+    params = []
+
+    if selected_user_id is not None:
+        sql += " WHERE user_id = ?"
+        params.append(selected_user_id)
+
+    cur = db.execute(sql, params)
+    prescriptions = cur.fetchall()
+
+    return render_template(
+        "prescriptions.html",
+        prescriptions=prescriptions,
+        selected_user_id=selected_user_id,
+    )
 
 
-@app.route("/delete_prescription/<int:prescription_id>", methods=["POST"])
-def delete_prescription(prescription_id):
+@app.route("/prescriptions/new", methods=["GET", "POST"])
+def add_prescription():
     if "user" not in session:
         return redirect(url_for("login"))
 
     db = get_db()
-    db.execute(
-        "DELETE FROM prescriptions WHERE prescription_id = ? AND user_id = ?",
-        (prescription_id, session["user_id"])
-    )
-    db.commit()
-    return {"success": True}
 
+    if request.method == "POST":
+        user_id = request.form.get("user_id")
+        user_id = int(user_id) if user_id else None
+
+        name = request.form.get("name")
+        amount = request.form.get("amount")
+        frequency = request.form.get("frequency")
+        refill_date = request.form.get("refill_date")
+        dosage = request.form.get("dosage")
+        time_of_day = request.form.get("time_of_day")
+        status = "Active"
+
+        if not name or not amount or not frequency or not refill_date:
+            print("[ERROR] Missing required fields in Add Prescription")
+            return redirect(url_for("add_prescription", user_id=user_id))
+
+        db.execute(
+            """
+            INSERT INTO prescriptions
+                (user_id, name, amount, frequency, refill_date, dosage, time_of_day, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (user_id, name, amount, frequency, refill_date, dosage, time_of_day, status),
+        )
+        db.commit()
+
+        if user_id:
+            return redirect(url_for("get_prescriptions", user_id=user_id))
+        return redirect(url_for("get_prescriptions"))
+
+    # GET
+    selected_user_id = request.args.get("user_id", type=int)
+    return render_template("prescription_form.html", selected_user_id=selected_user_id)
+
+
+@app.route("/prescriptions/<int:prescription_id>/delete", methods=["POST"])
+def delete_prescription(prescription_id):
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    selected_user_id = request.args.get("user_id", type=int)
+
+    db = get_db()
+    try:
+        db.execute("DELETE FROM prescriptions WHERE prescription_id = ?;", (prescription_id,))
+        db.commit()
+    except Exception as e:
+        print(f"[ERROR] delete_prescription failed: {e}")
+
+    if selected_user_id:
+        return redirect(url_for("get_prescriptions", user_id=selected_user_id))
+    return redirect(url_for("get_prescriptions"))
 
 
 @app.route("/prescription_form")
@@ -362,50 +589,105 @@ def prescription_form():
     return render_template("prescription_form.html", users=users)
 
 
-@app.route("/add_prescription", methods=["POST"])
-def add_prescription():
-    if "user" not in session:
-        return redirect(url_for("login"))
-
-    db = get_db()
-    user_id = request.form["user_id"]  # from dropdown
-    name = request.form["name"]
-    amount = request.form["amount"]
-    frequency = request.form["frequency"]
-    refill_date = request.form["refill_date"]
-    dosage = request.form.get("dosage", "")
-    time_of_day = request.form.get("time_of_day", "")
-
-    db.execute("""
-        INSERT INTO prescriptions (user_id, name, amount, frequency, refill_date, dosage, time_of_day, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')
-    """, (user_id, name, amount, frequency, refill_date, dosage, time_of_day))
-    db.commit()
-
-    return redirect(url_for("get_prescriptions"))
-
-
-from core import perform_dispense_simple  # add this near the top of app.py
-
 @app.route("/dispense", methods=["POST"])
 def dispense():
     if "user" not in session:
         return {"success": False, "error": "Unauthorized"}, 401
 
-    try:
-        success = perform_dispense_simple()  # 🚀 Direct call through core.py
+    user_id = session.get("user_id")
 
-        if success:
-            print("DEBUG: Dispense successful.")
-            return {"success": True, "message": "Dispense completed successfully."}
+    # Optional motor_id from JSON body, default to 1 for now
+    payload = request.get_json(silent=True) or {}
+    try:
+        motor_id = int(payload.get("motor_id", 1))
+    except (TypeError, ValueError):
+        motor_id = 1
+
+    try:
+        result = core.dispense_slot(user_id=user_id, motor_id=motor_id)
+
+        if result.get("success"):
+            print(
+                f"DEBUG: Dispense successful for user_id={user_id}, motor_id={motor_id}"
+            )
+            return {
+                "success": True,
+                "message": "Dispense completed successfully.",
+            }, 200
         else:
-            print("ERROR: Dispense failed (motor returned False).")
-            return {"success": False, "error": "Dispense failed at hardware level."}
+            error_msg = result.get("error") or "Dispense failed at hardware level."
+            print(f"ERROR: Dispense failed -> {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg,
+            }, 500
 
     except Exception as e:
-        print("ERROR: Dispense route crashed ->", e)
-        return {"success": False, "error": f"Exception occurred: {e}"}
+        print("ERROR: /dispense route crashed ->", e)
+        return {
+            "success": False,
+            "error": f"Exception occurred: {e}",
+        }, 500
 
+@app.route("/home_motors", methods=["POST"])
+def home_motors():
+    """
+    Home all motors (7 x 320 steps in reverse) and reset call counters.
+
+    This will eventually be triggered by a 'Reset / Home All' button on
+    the dashboard or Demo Day page.
+    """
+    if "user" not in session:
+        return {"success": False, "error": "Unauthorized"}, 401
+
+    try:
+        results = core.home_all_motors(direction=-1)
+
+        # results is expected to be a dict like {1: True, 2: True, ...}
+        print(f"DEBUG: Home all motors results: {results}")
+
+        if all(results.values()):
+            return {
+                "success": True,
+                "message": "All motors homed successfully.",
+                "results": results,
+            }, 200
+        else:
+            return {
+                "success": False,
+                "error": "One or more motors failed to home.",
+                "results": results,
+            }, 500
+
+    except Exception as e:
+        print("ERROR: /home_motors route crashed ->", e)
+        return {
+            "success": False,
+            "error": f"Exception occurred: {e}",
+        }, 500
+
+@app.route("/demo_alarms", methods=["POST"])
+def demo_alarms():
+    """
+    Demo-only endpoint to trigger alarms on command.
+    Uses core.trigger_alarms and bypasses fingerprint.
+    """
+    if "user" not in session:
+        return {"success": False, "error": "Unauthorized"}, 401
+
+    try:
+        core.trigger_alarms(duration=30.0)
+        return {
+            "success": True,
+            "message": "Demo alarms triggered successfully.",
+        }, 200
+
+    except Exception as e:
+        print("ERROR: /demo_alarms route crashed ->", e)
+        return {
+            "success": False,
+            "error": f"Exception occurred: {e}",
+        }, 500
 
 # --- device / screen communication endpoints ---
 

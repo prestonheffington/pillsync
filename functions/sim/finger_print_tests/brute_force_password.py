@@ -10,7 +10,8 @@ passwords_to_try = [
     0x0000FFFF,
 ]
 
-uart = serial.Serial("/dev/serial0", baudrate=57600, timeout=1)
+uart = serial.Serial("/dev/ttyAMA0", baudrate=57600, timeout=1)
+
 finger = Adafruit_Fingerprint(uart)
 
 print("🔍 Starting password brute-force...")

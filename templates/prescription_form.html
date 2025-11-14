@@ -3,80 +3,161 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prescription Management</title>
+    <title>Add Prescription - PillSync</title>
+
     <style>
+        /* Unified Demo Day Styles */
         body {
+            margin: 0;
             font-family: Arial, sans-serif;
-            background-color: #1E3A5F;
-            color: white;
+            background: #0b1220;
+            color: #f9fafb;
             text-align: center;
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 32px 16px;
         }
-        form {
-            background: white;
-            color: black;
-            padding: 20px;
-            border-radius: 8px;
-            display: inline-block;
-            margin-top: 20px;
-            max-width: 420px;
-            width: 90%;
+
+        h1 {
+            margin-top: 12px;
+            margin-bottom: 20px;
+        }
+
+        /* Container Panel */
+        .demo-container {
+            background: rgba(15, 23, 42, 0.90);
+            border-radius: 16px;
+            padding: 28px 32px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+
+            width: 100%;
+            max-width: 480px;
             text-align: left;
         }
-        label { display:block; margin-top: 10px; font-weight: bold; }
-        input, select {
+
+        label {
+            display: block;
+            margin-top: 14px;
+            font-weight: bold;
+            font-size: 0.95rem;
+        }
+
+        input,
+        select {
             width: 100%;
-            padding: 8px;
-            margin: 6px 0 12px 0;
+            padding: 12px 14px;
+            margin-top: 6px;
+
+            border-radius: 10px;
+            border: 1px solid #374151;
+            background: #111827;
+            color: #f9fafb;
+            font-size: 1rem;
+
             box-sizing: border-box;
         }
-        .hint { font-size: 12px; color: #555; margin-top: -8px; margin-bottom: 12px; }
-        button {
-            background-color: #FF7F00;
-            color: white;
-            padding: 10px;
-            border: none;
-            cursor: pointer;
-            width: 100%;
-            border-radius: 4px;
+
+        input::placeholder {
+            color: #9ca3af;
         }
-        button:hover { opacity: 0.95; }
+
+        .hint {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        /* Buttons */
+        button {
+            margin-top: 20px;
+            width: 100%;
+
+            border: none;
+            border-radius: 999px;
+            padding: 12px 16px;
+            font-size: 1rem;
+
+            cursor: pointer;
+            background: #2563eb;
+            color: #f9fafb;
+
+            transition: background 0.15s ease, transform 0.05s ease;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        button:active {
+            transform: scale(0.97);
+        }
+
+        .back-link {
+            display: block;
+            margin-top: 14px;
+            color: #93c5fd;
+            text-decoration: none;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
+
 <body>
 
-    <h1>Manage Prescriptions</h1>
+    <h1>Add Prescription</h1>
 
-    <form action="/add_prescription" method="POST">
-        <!-- NEW: Choose which user this prescription belongs to -->
-        <label for="user_id">User</label>
-        <select name="user_id" id="user_id" required>
-            {% for u in users %}
-              <option value="{{ u.user_id }}">{{ u.name }}</option>
-            {% endfor %}
-        </select>
+    <div class="demo-container">
+        <form action="{{ url_for('add_prescription', user_id=selected_user_id) }}" method="POST">
 
-        <label for="name">Prescription Name</label>
-        <input id="name" type="text" name="name" placeholder="e.g., Aspirin" required>
+            {% if selected_user_id %}
+                <p><strong>For User ID:</strong> {{ selected_user_id }}</p>
+                <input type="hidden" name="user_id" value="{{ selected_user_id }}">
+            {% else %}
+                <p style="font-size: 0.85rem; color: #9ca3af;">
+                    No specific user selected — this prescription will not be tied to a user.
+                </p>
+            {% endif %}
 
-        <label for="amount">Amount (in days)</label>
-        <input id="amount" type="number" name="amount" min="1" placeholder="e.g., 30" required>
+            <label for="name">Prescription Name</label>
+            <input id="name" type="text" name="name" placeholder="e.g., Aspirin" required>
 
-        <label for="frequency">Frequency</label>
-        <input id="frequency" type="text" name="frequency" placeholder="e.g., Daily, Twice a day" required>
+            <label for="amount">Amount (in days)</label>
+            <input id="amount" type="number" name="amount" min="1" placeholder="e.g., 30" required>
 
-        <label for="refill_date">Refill Date</label>
-        <input id="refill_date" type="date" name="refill_date" required>
+            <label for="frequency">Frequency</label>
+            <input id="frequency" type="text" name="frequency" placeholder="e.g., Daily, Twice a day" required>
 
-        <label for="dosage">Dosage</label>
-        <input id="dosage" type="text" name="dosage" placeholder="e.g., 100mg">
+            <label for="refill_date">Refill Date</label>
+            <input id="refill_date" type="date" name="refill_date" required>
 
-        <label for="time_of_day">Time of Day</label>
-        <input id="time_of_day" type="text" name="time_of_day" placeholder="HH:MM (24h), e.g., 09:00">
-        <div class="hint">Use 24-hour format (HH:MM). The alert thread checks within ±15 minutes.</div>
+            <label for="dosage">Dosage</label>
+            <input id="dosage" type="text" name="dosage" placeholder="e.g., 100mg">
 
-        <button type="submit">Add Prescription</button>
-    </form>
+            <label for="time_of_day">Time of Day</label>
+            <input id="time_of_day" type="text" name="time_of_day" placeholder="HH:MM (24h), e.g., 09:00">
+            <div class="hint">Use 24-hour format (HH:MM). Alerts check within ±15 minutes.</div>
+
+            <button type="submit">Add Prescription</button>
+
+            {% if selected_user_id %}
+                <a class="back-link" href="{{ url_for('get_prescriptions', user_id=selected_user_id) }}">
+                    ⬅ Back to Prescriptions
+                </a>
+            {% else %}
+                <a class="back-link" href="{{ url_for('get_prescriptions') }}">
+                    ⬅ Back to Prescriptions
+                </a>
+            {% endif %}
+        </form>
+    </div>
 
 </body>
 </html>
-
