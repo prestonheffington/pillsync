@@ -96,10 +96,11 @@
 
     <form action="{{ url_for('add_user') }}" method="post" style="margin-bottom: 16px;">
         <input type="text" name="name" placeholder="New user name"
-            style="padding:6px 8px; border-radius:8px; border:1px solid #4b5563; background:#020617; color:#e5e7eb;">
-        <button type="submit" class="btn" style="margin-left:6px;">Add User</button>
+            style="padding:6px 8px; border-radius:8px; margin-right:6px;">
+        <input type="date" name="birthdate"
+            style="padding:6px 8px; border-radius:8px; margin-right:6px;">
+        <button type="submit" class="btn">Add User</button>
     </form>
-
 
     <table>
         <thead>
@@ -112,24 +113,28 @@
         </thead>
         <tbody>
         {% for user in users %}
-            <tr>
-               <td>
-                    <form action="{{ url_for('enroll_fingerprint', user_id=user.id) }}" method="post" style="display:inline;">
-                        <button type="submit" class="btn-secondary btn">Enroll FP</button>
-                    </form>
-                    <form action="{{ url_for('delete_fingerprint', user_id=user.id) }}" method="post" style="display:inline; margin-left:4px;">
-                        <button type="submit" class="btn-secondary btn">Del FP</button>
-                    </form>
-                    <form action="{{ url_for('delete_user', user_id=user.id) }}" method="post"
-                          style="display:inline; margin-left:8px;"
-                          onsubmit="return confirm('Delete this user? This may orphan prescriptions later.');">
-                        <button type="submit" class="btn-secondary btn">Del User</button>
-                    </form>
-                </td>
+        <tr>
+            <td>{{ user.id }}</td>
+            <td>{{ user.name }}</td>
+            <td>
+                <a class="btn" href="{{ url_for('get_prescriptions', user_id=user.id) }}">View / Manage</a>
+            </td>
+            <td>{{ user.fingerprint }}</td>
 
-
-            </tr>
+            <td>
+                <form action="{{ url_for('enroll_fingerprint', user_id=user.id) }}" method="post" style="display:inline;">
+                    <button type="submit" class="btn-secondary btn">Enroll FP</button>
+                </form>
+                <form action="{{ url_for('delete_fingerprint', user_id=user.id) }}" method="post" style="display:inline;">
+                    <button type="submit" class="btn-secondary btn">Del FP</button>
+                </form>
+                <form action="{{ url_for('delete_user', user_id=user.id) }}" method="post" style="display:inline;">
+                    <button type="submit" class="btn-secondary btn">Del User</button>
+                </form>
+            </td>
+        </tr>
         {% endfor %}
+
         </tbody>
     </table>
 

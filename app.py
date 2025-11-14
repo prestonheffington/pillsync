@@ -282,45 +282,23 @@ def dashboard():
         prescriptions=prescriptions
     )
 
+
 @app.route("/users")
 def get_users():
     if "user" not in session:
         return redirect(url_for("login"))
 
-    db = sqlite3.connect("data/pillsync.db")
-    db.row_factory = sqlite3.Row
-
-    rows = db.execute("SELECT * FROM users;").fetchall()
-    db.close()
+    db = get_db()
+    rows = db.execute("SELECT * FROM users ORDER BY user_id ASC;").fetchall()
 
     users = []
     for row in rows:
-        cols = row.keys()
-
-        # Try to detect the ID column
-        if "id" in cols:
-            id_key = "id"
-        elif "user_id" in cols:
-            id_key = "user_id"
-        else:
-            # Fallback: first column as ID
-            id_key = cols[0]
-
-        # Try to detect the name column
-        if "name" in cols:
-            name_key = "name"
-        elif "username" in cols:
-            name_key = "username"
-        else:
-            # Fallback: second column as name if it exists
-            name_key = cols[1] if len(cols) > 1 else cols[0]
-
-        users.append(
-            {
-                "id": row[id_key],
-                "name": row[name_key],
-            }
-        )
+        users.append({
+            "id": row["user_id"],
+            "name": row["name"],
+            "birthdate": row["birthdate"],
+            "fingerprint": "Yes" if row["fingerprint_data"] else "No",
+        })
 
     return render_template("users.html", users=users)
 
@@ -355,54 +333,45 @@ def delete_fingerprint(user_id):
     # TODO: integrate actual fingerprint delete logic
     return redirect(url_for("get_users"))
 
+
 @app.route("/users/add", methods=["POST"])
 def add_user():
-    """
-    Create a new user in the users table.
-    Currently only stores a display name; later we can add more fields.
-    """
     if "user" not in session:
         return redirect(url_for("login"))
 
     name = request.form.get("name", "").strip()
-    if not name:
-        # No name provided; just go back to the users page
+    birthdate = request.form.get("birthdate", "").strip()
+
+    if not name or not birthdate:
+        print("[ERROR] Missing required fields for new user")
         return redirect(url_for("get_users"))
 
     db = get_db()
     try:
-        # NOTE:
-        # If your users table uses 'username' instead of 'name',
-        # change the column name below to 'username'.
-        db.execute("INSERT INTO users (name) VALUES (?);", (name,))
+        db.execute(
+            "INSERT INTO users (name, birthdate) VALUES (?, ?);",
+            (name, birthdate),
+        )
         db.commit()
+        print(f"[INFO] User added: {name}, {birthdate}")
     except Exception as e:
         print(f"[ERROR] add_user failed: {e}")
-        # For now just bounce back; you can also flash a message if needed
-    return redirect(url_for("get_users"))
 
+    return redirect(url_for("get_users"))
 
 
 @app.route("/users/<int:user_id>/delete", methods=["POST"])
 def delete_user(user_id):
-    """
-    Delete a user from the users table.
-
-    NOTE: Right now this does NOT touch prescriptions.
-    Once prescriptions are tied to user_id, we will decide whether to:
-    - cascade delete their prescriptions, or
-    - prevent deletion if prescriptions still exist.
-    """
     if "user" not in session:
         return redirect(url_for("login"))
 
-    db = sqlite3.connect("data/pillsync.db")
+    db = get_db()
     try:
-        # If your PK column is 'user_id' instead of 'id', change 'id' below
-        db.execute("DELETE FROM users WHERE id = ?;", (user_id,))
+        db.execute("DELETE FROM users WHERE user_id = ?;", (user_id,))
         db.commit()
-    finally:
-        db.close()
+        print(f"[INFO] User deleted: {user_id}")
+    except Exception as e:
+        print(f"[ERROR] delete_user failed: {e}")
 
     return redirect(url_for("get_users"))
 
@@ -484,20 +453,65 @@ def get_prescriptions():
     )
 
 
-
-@app.route("/delete_prescription/<int:prescription_id>", methods=["POST"])
-def delete_prescription(prescription_id):
+@app.route("/prescriptions/new", methods=["GET", "POST"])
+def add_prescription():
     if "user" not in session:
         return redirect(url_for("login"))
 
     db = get_db()
-    db.execute(
-        "DELETE FROM prescriptions WHERE prescription_id = ? AND user_id = ?",
-        (prescription_id, session["user_id"])
-    )
-    db.commit()
-    return {"success": True}
 
+    if request.method == "POST":
+        user_id = request.form.get("user_id")
+        user_id = int(user_id) if user_id else None
+
+        name = request.form.get("name")
+        amount = request.form.get("amount")
+        frequency = request.form.get("frequency")
+        refill_date = request.form.get("refill_date")
+        dosage = request.form.get("dosage")
+        time_of_day = request.form.get("time_of_day")
+        status = "Active"
+
+        if not name or not amount or not frequency or not refill_date:
+            print("[ERROR] Missing required fields in Add Prescription")
+            return redirect(url_for("add_prescription", user_id=user_id))
+
+        db.execute(
+            """
+            INSERT INTO prescriptions
+                (user_id, name, amount, frequency, refill_date, dosage, time_of_day, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (user_id, name, amount, frequency, refill_date, dosage, time_of_day, status),
+        )
+        db.commit()
+
+        if user_id:
+            return redirect(url_for("get_prescriptions", user_id=user_id))
+        return redirect(url_for("get_prescriptions"))
+
+    # GET
+    selected_user_id = request.args.get("user_id", type=int)
+    return render_template("prescription_form.html", selected_user_id=selected_user_id)
+
+
+@app.route("/prescriptions/<int:prescription_id>/delete", methods=["POST"])
+def delete_prescription(prescription_id):
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    selected_user_id = request.args.get("user_id", type=int)
+
+    db = get_db()
+    try:
+        db.execute("DELETE FROM prescriptions WHERE prescription_id = ?;", (prescription_id,))
+        db.commit()
+    except Exception as e:
+        print(f"[ERROR] delete_prescription failed: {e}")
+
+    if selected_user_id:
+        return redirect(url_for("get_prescriptions", user_id=selected_user_id))
+    return redirect(url_for("get_prescriptions"))
 
 
 @app.route("/prescription_form")
@@ -507,29 +521,6 @@ def prescription_form():
     db = get_db()
     users = db.execute("SELECT user_id, name FROM users WHERE name != ?", ('admin',)).fetchall()
     return render_template("prescription_form.html", users=users)
-
-
-@app.route("/add_prescription", methods=["POST"])
-def add_prescription():
-    if "user" not in session:
-        return redirect(url_for("login"))
-
-    db = get_db()
-    user_id = request.form["user_id"]  # from dropdown
-    name = request.form["name"]
-    amount = request.form["amount"]
-    frequency = request.form["frequency"]
-    refill_date = request.form["refill_date"]
-    dosage = request.form.get("dosage", "")
-    time_of_day = request.form.get("time_of_day", "")
-
-    db.execute("""
-        INSERT INTO prescriptions (user_id, name, amount, frequency, refill_date, dosage, time_of_day, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'Active')
-    """, (user_id, name, amount, frequency, refill_date, dosage, time_of_day))
-    db.commit()
-
-    return redirect(url_for("get_prescriptions"))
 
 
 @app.route("/dispense", methods=["POST"])

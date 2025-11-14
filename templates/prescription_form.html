@@ -40,20 +40,34 @@
             border-radius: 4px;
         }
         button:hover { opacity: 0.95; }
+        a.back-link {
+            color: #93c5fd;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 12px;
+        }
+        a.back-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
 
     <h1>Manage Prescriptions</h1>
 
-    <form action="/add_prescription" method="POST">
-        <!-- NEW: Choose which user this prescription belongs to -->
-        <label for="user_id">User</label>
-        <select name="user_id" id="user_id" required>
-            {% for u in users %}
-              <option value="{{ u.user_id }}">{{ u.name }}</option>
-            {% endfor %}
-        </select>
+    <!-- Form posts to the Flask route add_prescription -->
+    <form action="{{ url_for('add_prescription', user_id=selected_user_id) }}" method="POST">
+
+        {% if selected_user_id %}
+            <!-- Locked to a single user (came from /prescriptions?user_id=X) -->
+            <p><strong>For User ID:</strong> {{ selected_user_id }}</p>
+            <input type="hidden" name="user_id" value="{{ selected_user_id }}">
+        {% else %}
+            <!-- No user selected: optional loose prescription -->
+            <p style="font-size: 0.9rem; color:#444;">
+                No specific user selected. This prescription will not be tied to a user.
+            </p>
+        {% endif %}
 
         <label for="name">Prescription Name</label>
         <input id="name" type="text" name="name" placeholder="e.g., Aspirin" required>
@@ -75,8 +89,16 @@
         <div class="hint">Use 24-hour format (HH:MM). The alert thread checks within ±15 minutes.</div>
 
         <button type="submit">Add Prescription</button>
+        {% if selected_user_id %}
+        <a class="back-link" href="{{ url_for('get_prescriptions', user_id=selected_user_id) }}">
+            ⬅ Back to Prescriptions
+        </a>
+    {% else %}
+        <a class="back-link" href="{{ url_for('get_prescriptions') }}">
+            ⬅ Back to Prescriptions
+        </a>
+    {% endif %}
     </form>
 
 </body>
 </html>
-
