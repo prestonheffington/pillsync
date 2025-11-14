@@ -1,137 +1,201 @@
-# 💊 PillSync
+PillSyncOS
 
-PillSync is a web-based smart medication management system designed to run on a Raspberry Pi. It provides a user-friendly interface to schedule, dispense, and track medication doses while integrating with hardware peripherals like LEDs, buzzers, and fingerprint sensors.
+Smart Medication Management System for Raspberry Pi
 
----
+PillSyncOS is a Raspberry Pi–based medication management platform that integrates a secure web interface with hardware components such as stepper motors, LED indicators, piezo alarms, and optional fingerprint authentication. The system allows users to schedule, dispense, and track medication doses while providing a modular, hardware-driven backend.
 
-## 🚀 Features
+Features
+Secure Access
 
-- Secure login system with credential setup on first use
-- Session-based authentication with auto logout
-- Dashboard with:
-  - Dynamic welcome message
-  - Upcoming medication list
-  - Manual dispense button
-- Prescription management:
-  - Add, view, and delete prescriptions
-  - Time-based scheduling support with dosage and refill tracking
-- Simulated peripheral control (LEDs, buzzers, stepper motors)
-- Background alert system for scheduled medication notifications
-- Styled responsive interface with glass UI and background image
+First-time credential update workflow
 
----
+Session-based authentication
 
-## 📁 Project Structure
+Automatic logout after inactivity
 
+Dashboard
+
+Dynamic welcome message
+
+User list
+
+Manual dispense controls
+
+Upcoming medication list
+
+Prescription Management
+
+Add, edit, and delete prescriptions
+
+Time-based scheduling
+
+Refill tracking
+
+User association for multi-patient use
+
+Hardware Integration
+
+Stepper motor control via MCP23017 expanders
+
+NeoPixel alert lighting
+
+Piezo alarm notifications
+
+Fingerprint authentication support (planned)
+
+Complete simulation layer for development environments
+
+Background Services
+
+Independent scheduler thread
+
+Triggers alerts and handles timed dispensing
+
+Logs dispense outcomes
+
+Project Structure
 pillsync/
-├── app.py                   # Main Flask server
-├── data/                    # Contains SQLite DB and credentials file
-│   ├── pillsync.db
-│   └── credentials.json
-├── functions/               # Simulated hardware control scripts
-│   ├── servermotor_sim.py
-│   ├── buzzer_sim.py
-│   └── LEDalert_sim.py
-├── static/                  # Static assets (e.g., background.png)
-│   └── background.png
-├── templates/               # HTML templates (Flask Jinja2)
+├── app.py                   # Main Flask application
+├── core.py                  # Core logic (dispense workflow, scheduling engine)
+├── config.py                # System configuration flags
+│
+├── data/
+│   ├── pillsync.db          # SQLite database
+│   ├── pillsync_backup.db   # Automatic backup
+│   ├── credentials.json     # Stored hashed credentials
+│   └── schema.sql           # Database schema
+│
+├── functions/
+│   ├── motor_array.py       # Stepper motor driver (auto I2C detection)
+│   ├── motor_homing.py      # Homing logic (future)
+│   ├── fingerprint.py       # Hardware fingerprint wrapper
+│   ├── neopixel_alarm.py    # NeoPixel alert control
+│   ├── piezo_alarm.py       # Piezo tone generator
+│   ├── notification.py      # Internal logging and notifications
+│   ├── ui.py                # UI helpers
+│   └── sim/                 # Simulation modules
+│       ├── buzzer_sim.py
+│       ├── LEDalert_sim.py
+│       ├── servermotor_sim.py
+│       └── stepper_sim.py
+│
+├── templates/               # Jinja2 templates
 │   ├── login.html
 │   ├── update_credentials.html
 │   ├── dashboard.html
 │   ├── prescriptions.html
-│   └── prescription_form.html
-├── requirements.txt         # Python dependencies
-├── README.md                # Project overview and instructions
-└── license.txt              # Project license
+│   ├── prescription_form.html
+│   ├── users.html
+│   └── demo.html
+│
+├── static/
+│   └── background.png
+│
+├── requirements.txt
+├── liscense.txt
+└── README.md
 
----
-
-## ⚙️ Setup Instructions
-
-### 1. Clone the Repository
-
-```bash
+Installation
+1. Clone the repository
 git clone https://github.com/prestonheffington/pillsync.git
 cd pillsync
-```
 
-### 2. Install Dependencies
-
-```bash
+2. Install dependencies
 sudo pip3 install -r requirements.txt --break-system-packages
-```
 
-### 3. Run the Server
+3. Enable I2C (required for hardware operation)
+sudo raspi-config
 
-```bash
+
+Interface Options → I2C → Enable
+
+4. Run the application
 python3 app.py
-```
 
-Then visit:
 
-```
-http://<your_pi_ip>:5000
-```
+Access the web interface via:
 
-Example:
-```
-http://192.168.1.50:5000
-```
+http://<raspberry_pi_ip>:5000
 
----
+Default Credentials
 
-## 🔐 Default Credentials
+Username: admin
+Password: password
 
-- **Username:** `admin`
-- **Password:** `password`
+The system will require a credential update on first login.
 
-> You will be prompted to change these on first login.
+Dispense Workflow Overview
 
----
+The dispensing process is coordinated through core.py:
 
-## 🔧 Hardware Integration
+A scheduled time triggers, or the user initiates a manual dispense.
 
-This project supports GPIO peripherals such as:
+Fingerprint authentication is applied if enabled.
 
-- **LEDs** – Represent various alerts and actions.
-- **Buzzers** – Audio alerts for scheduled doses.
-- **Stepper motors** – Simulate or control medication dispensing.
-- **Fingerprint sensor** (planned) – For secure identity verification before dispensing.
+MotorArray sends coil patterns to the MCP23017 expander.
 
-> For prototyping, LEDs are used to simulate all peripheral outputs.
+Stepper motors rotate the appropriate number of steps.
 
----
+Logs are recorded in the database.
 
-## 💡 Development Notes
+NeoPixel and/or piezo alerts are triggered when appropriate.
 
-- All UI is dynamically updated based on database content.
-- Routes and functions are modular to allow future hardware integration.
-- Background tasks run in a thread to check medication schedules every minute.
+If hardware is unavailable, simulation modules provide safe fallback behavior.
 
----
+Hardware Support
+Supported Devices
 
-## 🛡️ Planned Features
+MCP23017 GPIO expanders
 
-- Remote secure access via Tailscale or Cloudflare Tunnel
-- Fingerprint-based dispense authorization
-- Refill alerts via email/text
-- Activity logs and usage analytics
+28BYJ-48 stepper motors with ULN2003 drivers
 
----
+NeoPixel LED strips/sticks
 
-## 🤝 Contribution
+UART fingerprint sensors
 
-To contribute, fork the repo and submit a pull request. The current structure must be followed. All changes must be tested before merging into `main`.
+Piezo buzzers
 
----
+Physical dispense buttons
 
-## 📄 License
+Auto-Detection
 
-This project is licensed under the terms of the MIT License. See `license.txt` for details.
+motor_array.py automatically scans for expanders at addresses 0x20 and 0x21, enabling only motors mapped to detected hardware.
 
----
+Development Notes
 
-## 👨‍💻 Maintainer
+All authentication credentials are hashed.
 
-**Preston Heffington**  
-GitHub: [@prestonheffington](https://github.com/prestonheffington)
+The scheduler runs in a background thread independent of the Flask server.
+
+SQLite is used for local persistence and supports hot-swap backups.
+
+The system is structured to allow hardware modules to be added, removed, or simulated without breaking core functionality.
+
+Roadmap
+
+Full fingerprint-based dispense authorization
+
+Remote access via VPN/tunnel solutions
+
+Refill notifications via SMS or email
+
+Logging dashboard for system events
+
+Multi-profile support for larger installations
+
+Optional MQTT or BLE connectivity
+
+Contributing
+
+Fork the repository
+
+Create a feature branch
+
+Submit a pull request to the main branch
+
+Ensure hardware-related changes are tested on device
+
+License
+
+This project is licensed under the MIT License.
+See liscense.txt for licensing details.
