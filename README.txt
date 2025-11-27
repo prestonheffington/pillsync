@@ -187,7 +187,7 @@ Optional MQTT or BLE connectivity
 
 Contributing
 
-Fork the repository
+Branch the repository
 
 Create a feature branch
 
