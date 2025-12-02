@@ -16,29 +16,46 @@ except Exception as e:
 
 
 class FingerprintManager:
-    def __init__(self, port="/dev/ttyAMA0"):
-        self.port = port
+    def __init__(self, port=None, baudrate=57600, password=0x000000):
+        """
+        Automatically attempts multiple UART ports on Raspberry Pi.
+        Falls back to demo-safe mode if hardware is missing.
+        """
         self.finger = None
         self.ready = False
 
-        if HW_AVAILABLE:
+        if not HW_AVAILABLE:
+            print("[WARN] Fingerprint hardware unavailable → demo mode.")
+            return
+
+        # Candidate UART ports to try
+        candidate_ports = [
+            port or "/dev/serial0",   # Generic alias (recommended)
+            "/dev/ttyAMA0",           # Legacy primary UART
+            "/dev/ttyS0",             # Mini-UART fallback
+        ]
+
+        for p in candidate_ports:
             try:
-                self.uart = serial.Serial(self.port, baudrate=57600, timeout=1)
+                uart = serial.Serial(p, baudrate=baudrate, timeout=1)
                 time.sleep(0.2)
-                self.finger = Adafruit_Fingerprint(self.uart)
-                print("[INFO] Fingerprint sensor initialized.")
+
+                # IMPORTANT: Adafruit library uses 'passwd', not 'password'
+                self.finger = Adafruit_Fingerprint(uart, passwd=password)
+
+                print(f"[INFO] Fingerprint sensor initialized on {p}")
                 self.ready = True
+                return
             except Exception as e:
-                print(f"[WARN] Fingerprint sensor not available: {e}")
-                self.ready = False
-        else:
-            self.ready = False
+                print(f"[WARN] Failed to initialize fingerprint sensor on {p}: {e}")
+
+        # No ports worked → fallback
+        print("[WARN] Fingerprint manager not available; running in demo-safe mode.")
+        self.finger = None
+        self.ready = False
 
     def enroll(self, location):
-        """
-        Enroll a fingerprint at given location.
-        If hardware unavailable, return soft-success.
-        """
+        """Enroll a fingerprint at given location. Soft success if no hardware."""
         if not self.ready:
             print("[WARN] Fingerprint hardware missing → soft success for enrollment.")
             return True
@@ -78,14 +95,10 @@ class FingerprintManager:
         return True
 
     def verify(self):
-        """
-        Try to identify a fingerprint.
-        Returns template ID or None.
-        If hardware missing, return dummy success for demo.
-        """
+        """Verify a fingerprint. Auto-success if no hardware."""
         if not self.ready:
             print("[WARN] Fingerprint hardware missing → auto-verify success.")
-            return 1  # Always match "User 1" for demo day
+            return 1  # Always match "User 1" for demo mode
 
         print("Place finger...")
         while self.finger.get_image() != Adafruit_Fingerprint.OK:
@@ -100,10 +113,7 @@ class FingerprintManager:
         return self.finger.finger_id
 
     def delete(self, slot):
-        """
-        Delete a stored fingerprint.
-        Soft success if sensor missing.
-        """
+        """Delete a stored fingerprint. Soft success in demo mode."""
         if not self.ready:
             print("[WARN] No hardware → soft-delete success.")
             return True
