@@ -39,10 +39,7 @@ class FingerprintManager:
             try:
                 uart = serial.Serial(p, baudrate=baudrate, timeout=1)
                 time.sleep(0.2)
-
-                # IMPORTANT: Adafruit library uses 'passwd', not 'password'
-                self.finger = Adafruit_Fingerprint(uart, passwd=password)
-
+                self.finger = Adafruit_Fingerprint(uart)
                 print(f"[INFO] Fingerprint sensor initialized on {p}")
                 self.ready = True
                 return
@@ -124,3 +121,4 @@ class FingerprintManager:
 
 # Global instance used by app.py
 fp = FingerprintManager()
+
