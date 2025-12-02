@@ -30,9 +30,9 @@ class FingerprintManager:
 
         # Candidate UART ports to try
         candidate_ports = [
-            port or "/dev/serial0",   # Generic alias (recommended)
-            "/dev/ttyAMA0",           # Legacy primary UART
-            "/dev/ttyS0",             # Mini-UART fallback
+            "/dev/ttyAMA0",   # primary UART (required for 3.3V sensors)
+            "/dev/serial0",
+            "/dev/ttyS0",
         ]
 
         for p in candidate_ports:
@@ -121,4 +121,5 @@ class FingerprintManager:
 
 # Global instance used by app.py
 fp = FingerprintManager()
+
 
