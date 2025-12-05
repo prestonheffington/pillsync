@@ -3,14 +3,14 @@
 Piezo alarm driver for PillSyncOS.
 
 Wiring:
-  Piezo positive -> GPIO4 (BCM)
+  Piezo positive -> GPIO12 (BCM)
   Piezo negative -> GND
 """
 
 import time
 import RPi.GPIO as GPIO
 
-PIEZO_PIN = 4  # BCM numbering
+PIEZO_PIN = 12  # BCM numbering
 _initialized = False
 
 
