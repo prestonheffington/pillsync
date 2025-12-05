@@ -36,10 +36,10 @@ def _init_gpio():
         raise
 
 
-def _play_tone(freq: int, duration: float, duty: float = 35.0):
+def _play_tone(freq: int, duration: float, duty: float = 70.0):
     """
     Play a tone at the given frequency and duty cycle.
-    Softer duty cycles produce friendlier, non-harsh tones.
+    Higher duty = louder output while maintaining tone integrity.
     """
     global _pwm
     _init_gpio()
@@ -53,26 +53,25 @@ def _play_tone(freq: int, duration: float, duty: float = 35.0):
     time.sleep(duration)
     _pwm.stop()
 
-
-def _chirp(on_time=0.18, off_time=0.12):
+def _chirp(on_time=0.22, off_time=0.12):
     """
-    Medical-style 'chirp' tone:
-    - Soft clean tone start (1100 Hz)
-    - Rise to 1800 Hz (smart device chirp)
-    - Gentle duty cycles for comfort
+    Louder medical-style chirp with increased duty cycle.
+    Sweep: 1500 → 2600 Hz
+    Duty cycle: 65% → 80%
     """
     _init_gpio()
 
-    # Rise sweep: 1100 → 1800 Hz
-    sweep_start = 1100
-    sweep_end = 1800
+    sweep_start = 1500
+    sweep_end = 2600
     steps = 8
     step_size = (sweep_end - sweep_start) // steps
     tone_length = on_time / steps
 
     for i in range(steps):
         freq = sweep_start + (i * step_size)
-        duty = 35 + (i * 2)     # slight increase for rising effect
+        duty = 65 + (i * 2)  # Sweep from ~65% to ~80%
+        if duty > 80:
+            duty = 80  # Cap safely
         _play_tone(freq, tone_length, duty=duty)
 
     time.sleep(off_time)
