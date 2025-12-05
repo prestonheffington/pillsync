@@ -1,91 +1,79 @@
 #!/usr/bin/env python3
 """
-Neopixel alarm flash for PillSyncOS.
+NeoPixel alarm visual driver for PillSyncOS.
 
-Wiring:
-  Neopixel DIN  -> GPIO18 (BCM) / board.D18
-  Neopixel VCC  -> 5V
-  Neopixel GND  -> GND
+This version does NOT talk directly to the hardware.
+It calls the privileged root helper:
+    /usr/local/bin/neopixel_driver.py
 
-Assumes an 8-LED stick (8x5050).
+This keeps PillSync running as a normal user
+while still allowing LED control via sudo.
 """
 
 import time
-import board
-import neopixel
+import subprocess
 
-PIXEL_PIN = board.D18
-NUM_PIXELS = 8
-BRIGHTNESS = 0.4
+# How many chirps per group (match piezo)
+CHIRPS_PER_GROUP = 2
 
-_pixels = None
-
-
-def _init_pixels():
-    global _pixels
-    if _pixels is None:
-        _pixels = neopixel.NeoPixel(
-            PIXEL_PIN,
-            NUM_PIXELS,
-            brightness=BRIGHTNESS,
-            auto_write=False,
-        )
-        _pixels.fill((0, 0, 0))
-        _pixels.show()
-    return _pixels
+# Timings that match your piezo chirp behavior:
+CHIRP_ON = 0.22      # piezo rising sweep duration
+CHIRP_OFF = 0.12     # pause between chirps
+GROUP_PAUSE = 0.6    # pause after two chirps
 
 
-def _set_all(color):
-    pixels = _init_pixels()
-    pixels.fill(color)
-    pixels.show()
+def _flash_on():
+    """Trigger root helper to flash NeoPixels ON."""
+    subprocess.Popen(
+        ["sudo", "/usr/local/bin/neopixel_driver.py", "alert"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
-def alarm_flash(
-    duration: float = 30.0,
-    flash_on_time: float = 0.15,
-    flash_off_time: float = 0.15,
-    group_flashes: int = 3,
-    group_pause: float = 0.5,
-    color=(255, 0, 0),
-):
+def _flash_off():
+    """Turn NeoPixels OFF."""
+    subprocess.Popen(
+        ["sudo", "/usr/local/bin/neopixel_driver.py", "off"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def alarm_flash(duration: float = 30.0):
     """
-    Blocking Neopixel alarm flash.
+    Visual alarm pattern that syncs with the Piezo's chirp pattern:
 
-    Pattern:
-      - 3 quick red flashes
-      - pause
-      - repeat until duration elapsed
-
-    :param duration: total alarm time in seconds (default 30s)
+    chirp:
+        - light on during chirp sweep
+        - off during chirp gap
+    group:
+        - pause between groups
     """
+
+    print("Starting Neopixel alarm flash (synced to piezo)...")
     start = time.time()
-    _init_pixels()
 
     try:
         while (time.time() - start) < duration:
-            # group of flashes
-            for _ in range(group_flashes):
-                _set_all(color)
-                time.sleep(flash_on_time)
-                _set_all((0, 0, 0))
-                time.sleep(flash_off_time)
 
-            # pause between groups
-            time.sleep(group_pause)
+            # Two chirps in a row (same as piezo)
+            for _ in range(CHIRPS_PER_GROUP):
+                _flash_on()
+                time.sleep(CHIRP_ON)
+                _flash_off()
+                time.sleep(CHIRP_OFF)
+
+            # Group pause (same as piezo)
+            time.sleep(GROUP_PAUSE)
+
     finally:
-        # ensure LEDs are off at the end
-        _set_all((0, 0, 0))
-
-
-def cleanup():
-    """Turn off LEDs; neopixel doesn't need a 'cleanup', just black them out."""
-    if _init_pixels() is not None:
-        _set_all((0, 0, 0))
+        # Make sure LEDs turn off at end
+        _flash_off()
+        print("Neopixel alarm finished.")
 
 
 if __name__ == "__main__":
-    print("Starting Neopixel alarm flash test for 10 seconds...")
+    print("Starting Neopixel alarm test for 10 seconds...")
     alarm_flash(duration=10.0)
     print("Done.")
-    cleanup()
