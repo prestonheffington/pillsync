@@ -5,28 +5,35 @@ Piezo alarm driver for PillSyncOS.
 Wiring:
   Piezo positive -> GPIO4 (BCM)
   Piezo negative -> GND
-
-Provides a blocking alarm() function that:
-- Emits repeated beep groups with pauses between
-- Runs for ~30 seconds by default
 """
 
 import time
 import RPi.GPIO as GPIO
 
 PIEZO_PIN = 4  # BCM numbering
-
 _initialized = False
 
 
 def _init_gpio():
+    """Initialize GPIO safely with Bookworm-compatible behavior."""
     global _initialized
     if _initialized:
         return
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(PIEZO_PIN, GPIO.OUT)
-    GPIO.output(PIEZO_PIN, GPIO.LOW)
-    _initialized = True
+
+    try:
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+
+        # Debug helpful print
+        print(f"[Piezo] Initializing GPIO pin {PIEZO_PIN}")
+
+        GPIO.setup(PIEZO_PIN, GPIO.OUT, initial=GPIO.LOW)
+
+        _initialized = True
+
+    except Exception as e:
+        print(f"[Piezo ERROR] Failed to initialize GPIO {PIEZO_PIN}: {e}")
+        raise
 
 
 def _beep(on_time: float = 0.15, off_time: float = 0.1):
@@ -45,22 +52,13 @@ def alarm(
     beep_off_time: float = 0.1,
     group_pause: float = 0.5,
 ):
-    """
-    Blocking alarm pattern for the configured duration.
-
-    Pattern:
-      - 3 short beeps
-      - pause
-      - repeat until duration elapsed
-
-    :param duration: total alarm time in seconds (default ~30s)
-    """
+    """Blocking alarm pattern for the configured duration."""
     _init_gpio()
     start = time.time()
 
     try:
         while (time.time() - start) < duration:
-            # one group of beeps
+            # beep group
             for _ in range(beeps_per_group):
                 GPIO.output(PIEZO_PIN, GPIO.HIGH)
                 time.sleep(beep_on_time)
@@ -69,22 +67,28 @@ def alarm(
 
             # pause between groups
             time.sleep(group_pause)
+
     finally:
-        # make sure the piezo is off at the end
-        GPIO.output(PIEZO_PIN, GPIO.LOW)
+        # always force piezo off
+        try:
+            GPIO.output(PIEZO_PIN, GPIO.LOW)
+        except:
+            pass
 
 
 def cleanup():
-    """Optional: clean up GPIO when shutting down the app."""
+    """Cleanup GPIO when shutting down."""
     global _initialized
     if _initialized:
-        GPIO.output(PIEZO_PIN, GPIO.LOW)
+        try:
+            GPIO.output(PIEZO_PIN, GPIO.LOW)
+        except:
+            pass
         GPIO.cleanup(PIEZO_PIN)
         _initialized = False
 
 
 if __name__ == "__main__":
-    # Simple standalone test
     print("Starting piezo alarm test for 10 seconds...")
     alarm(duration=10.0)
     print("Done.")
