@@ -10,8 +10,9 @@ Wiring:
 import time
 import RPi.GPIO as GPIO
 
-PIEZO_PIN = 12  # BCM numbering
+PIEZO_PIN = 12  # BCM numbering (PWM-capable)
 _initialized = False
+_pwm = None
 
 
 def _init_gpio():
@@ -24,7 +25,6 @@ def _init_gpio():
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BCM)
 
-        # Debug helpful print
         print(f"[Piezo] Initializing GPIO pin {PIEZO_PIN}")
 
         GPIO.setup(PIEZO_PIN, GPIO.OUT, initial=GPIO.LOW)
@@ -36,40 +36,53 @@ def _init_gpio():
         raise
 
 
-def _beep(on_time: float = 0.15, off_time: float = 0.1):
-    """Single short beep."""
+def _beep(
+    on_time: float = 0.15,
+    off_time: float = 0.1,
+    freq: int = 3000,
+    duty: float = 50.0,
+):
+    """
+    Loud beep using PWM tone.
+    freq ~3000 Hz works for most passive piezos.
+    duty 50% is usually the loudest.
+    """
+    global _pwm
     _init_gpio()
-    GPIO.output(PIEZO_PIN, GPIO.HIGH)
+
+    if _pwm is None:
+        _pwm = GPIO.PWM(PIEZO_PIN, freq)
+
+    _pwm.start(duty)   # TURN ON TONE
     time.sleep(on_time)
-    GPIO.output(PIEZO_PIN, GPIO.LOW)
+    _pwm.stop()        # TURN OFF TONE
     time.sleep(off_time)
 
 
 def alarm(
     duration: float = 30.0,
     beeps_per_group: int = 3,
-    beep_on_time: float = 0.15,
-    beep_off_time: float = 0.1,
-    group_pause: float = 0.5,
+    beep_on_time: float = 0.2,      # slightly longer for more volume
+    beep_off_time: float = 0.12,
+    group_pause: float = 0.45,
+    freq: int = 3000,               # loudest tone frequency
+    duty: float = 50.0,             # loudest duty cycle
 ):
-    """Blocking alarm pattern for the configured duration."""
+    """
+    Blocking alarm pattern using loud PWM tone.
+    """
     _init_gpio()
     start = time.time()
 
     try:
         while (time.time() - start) < duration:
-            # beep group
             for _ in range(beeps_per_group):
-                GPIO.output(PIEZO_PIN, GPIO.HIGH)
-                time.sleep(beep_on_time)
-                GPIO.output(PIEZO_PIN, GPIO.LOW)
-                time.sleep(beep_off_time)
+                _beep(beep_on_time, beep_off_time, freq=freq, duty=duty)
 
-            # pause between groups
             time.sleep(group_pause)
 
     finally:
-        # always force piezo off
+        # ensure pin is silent
         try:
             GPIO.output(PIEZO_PIN, GPIO.LOW)
         except:
@@ -78,7 +91,14 @@ def alarm(
 
 def cleanup():
     """Cleanup GPIO when shutting down."""
-    global _initialized
+    global _initialized, _pwm
+    if _pwm is not None:
+        try:
+            _pwm.stop()
+        except:
+            pass
+        _pwm = None
+
     if _initialized:
         try:
             GPIO.output(PIEZO_PIN, GPIO.LOW)
