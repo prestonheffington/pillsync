@@ -14,6 +14,9 @@ Each dispense call:
  • Rotates exactly 320 "whole steps"
  • One whole step = 2 half-steps
  • Limit of 7 calls per motor (reset after homing)
+
+MODIFIED:
+ • Global motor direction reversed (CW → CCW)
 """
 
 import time
@@ -29,13 +32,13 @@ OLATB  = 0x15
 ADDR_BOARD1 = 0x20
 ADDR_BOARD2 = 0x21
 
-# Half-step sequence from your working test script
+# Half-step sequence (original from test script)
 SEQ = [
     0b0001, 0b0011, 0b0010, 0b0110,
     0b0100, 0b1100, 0b1000, 0b1001
 ]
 
-# Master motor map template (we filter this after I2C detection)
+# Master motor map (filtered after detection)
 MOTOR_MAP_TEMPLATE = {
     1: {"addr": ADDR_BOARD1, "port": "A", "shift": 0},
     2: {"addr": ADDR_BOARD1, "port": "A", "shift": 4},
@@ -60,29 +63,28 @@ class MotorArray:
     def __init__(self, bus_num: int = 1):
         self.bus = SMBus(bus_num)
 
-        # 1) Detect which expanders exist
+        # 1) Detect expanders
         self._detect_expanders()
 
-        # 2) Build filtered motor map
+        # 2) Filter available motors
         self.motor_map = {
             mid: cfg for mid, cfg in MOTOR_MAP_TEMPLATE.items()
             if cfg["addr"] in self.detected_addrs
         }
 
-        # 3) Initialize call counters ONLY for detected motors
+        # 3) Initialize call counters
         self.call_counts = {mid: 0 for mid in self.motor_map}
 
-        # 4) Initialize detected expanders
+        # 4) Initialize expanders
         self._init_expanders()
 
         print(f"[MotorArray] Detected expanders: {self.detected_addrs}")
         print(f"[MotorArray] Active motors: {list(self.motor_map.keys())}")
 
-    # -------------------------
+    # -------------------------------------------------------------
     # Expander detection
-    # -------------------------
+    # -------------------------------------------------------------
     def _detect_expanders(self):
-        """Detect which MCP23017 expanders are physically present."""
         self.detected_addrs = []
         for addr in [ADDR_BOARD1, ADDR_BOARD2]:
             try:
@@ -91,20 +93,19 @@ class MotorArray:
             except:
                 pass
 
-    # -------------------------
+    # -------------------------------------------------------------
     # Expander setup
-    # -------------------------
+    # -------------------------------------------------------------
     def _init_expanders(self):
-        """Initialize only detected expanders."""
         for addr in self.detected_addrs:
             self.bus.write_byte_data(addr, IODIRA, 0x00)
             self.bus.write_byte_data(addr, IODIRB, 0x00)
             self.bus.write_byte_data(addr, OLATA, 0x00)
             self.bus.write_byte_data(addr, OLATB, 0x00)
 
-    # -------------------------
+    # -------------------------------------------------------------
     # Low-level helpers
-    # -------------------------
+    # -------------------------------------------------------------
     def _write_port(self, addr, port, value):
         reg = OLATA if port == "A" else OLATB
         self.bus.write_byte_data(addr, reg, value & 0xFF)
@@ -114,19 +115,15 @@ class MotorArray:
         addr = cfg["addr"]
         port = cfg["port"]
         shift = cfg["shift"]
-
-        # Place the 4-bit pattern into the correct nibble
         nibble_val = (pattern & 0x0F) << shift
-
-        # Write to MCP23017
         self._write_port(addr, port, nibble_val)
 
     def _coils_off_motor(self, motor_id):
         self._write_coils_motor(motor_id, 0x0)
 
-    # -------------------------
+    # -------------------------------------------------------------
     # Public API
-    # -------------------------
+    # -------------------------------------------------------------
     def remaining_calls(self, motor_id):
         return MAX_CALLS_PER_MOTOR - self.call_counts[motor_id]
 
@@ -137,6 +134,9 @@ class MotorArray:
         for mid in self.call_counts:
             self.call_counts[mid] = 0
 
+    # -------------------------------------------------------------
+    # STEPPER MOVEMENT (PATCHED FOR REVERSED DIRECTION)
+    # -------------------------------------------------------------
     def step_motor(
         self,
         motor_id: int,
@@ -154,14 +154,24 @@ class MotorArray:
             )
 
         total_halfsteps = whole_steps * HALFSTEPS_PER_WHOLESTEP
-        idx = 0 if direction >= 0 else len(SEQ) - 1
+
+        # --------------------------------------------------------
+        # PATCH: Reverse direction globally
+        # CW (old direction>=0) now becomes CCW
+        # --------------------------------------------------------
+        if direction >= 0:
+            idx = len(SEQ) - 1        # start at end
+            step_fn = lambda i: (i - 1) % len(SEQ)
+        else:
+            idx = 0                  # start at beginning
+            step_fn = lambda i: (i + 1) % len(SEQ)
 
         try:
             for _ in range(total_halfsteps):
                 pattern = SEQ[idx]
                 self._write_coils_motor(motor_id, pattern)
                 time.sleep(delay)
-                idx = (idx + 1) % len(SEQ) if direction >= 0 else (idx - 1) % len(SEQ)
+                idx = step_fn(idx)
 
         finally:
             self._coils_off_motor(motor_id)
@@ -169,6 +179,7 @@ class MotorArray:
         if enforce_limits:
             self.call_counts[motor_id] += 1
 
+    # -------------------------------------------------------------
     def coils_off_all(self):
         for addr in self.detected_addrs:
             self.bus.write_byte_data(addr, OLATA, 0x00)
@@ -182,7 +193,7 @@ class MotorArray:
 if __name__ == "__main__":
     ma = MotorArray()
     try:
-        print("Testing motor 1 → 320 steps CW")
+        print("Testing motor 1 → 320 steps (now CCW by default)")
         ma.step_motor(1)
     finally:
         ma.close()
