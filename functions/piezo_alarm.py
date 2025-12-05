@@ -36,40 +36,55 @@ def _init_gpio():
         raise
 
 
-def _beep(
-    on_time: float = 0.15,
-    off_time: float = 0.1,
-    freq: int = 3000,
-    duty: float = 50.0,
-):
+def _play_tone(freq: int, duration: float, duty: float = 35.0):
     """
-    Loud beep using PWM tone.
-    freq ~3000 Hz works for most passive piezos.
-    duty 50% is usually the loudest.
+    Play a tone at the given frequency and duty cycle.
+    Softer duty cycles produce friendlier, non-harsh tones.
     """
     global _pwm
     _init_gpio()
 
     if _pwm is None:
         _pwm = GPIO.PWM(PIEZO_PIN, freq)
+    else:
+        _pwm.ChangeFrequency(freq)
 
-    _pwm.start(duty)   # TURN ON TONE
-    time.sleep(on_time)
-    _pwm.stop()        # TURN OFF TONE
+    _pwm.start(duty)
+    time.sleep(duration)
+    _pwm.stop()
+
+
+def _chirp(on_time=0.18, off_time=0.12):
+    """
+    Medical-style 'chirp' tone:
+    - Soft clean tone start (1100 Hz)
+    - Rise to 1800 Hz (smart device chirp)
+    - Gentle duty cycles for comfort
+    """
+    _init_gpio()
+
+    # Rise sweep: 1100 → 1800 Hz
+    sweep_start = 1100
+    sweep_end = 1800
+    steps = 8
+    step_size = (sweep_end - sweep_start) // steps
+    tone_length = on_time / steps
+
+    for i in range(steps):
+        freq = sweep_start + (i * step_size)
+        duty = 35 + (i * 2)     # slight increase for rising effect
+        _play_tone(freq, tone_length, duty=duty)
+
     time.sleep(off_time)
 
 
 def alarm(
     duration: float = 30.0,
-    beeps_per_group: int = 3,
-    beep_on_time: float = 0.2,      # slightly longer for more volume
-    beep_off_time: float = 0.12,
-    group_pause: float = 0.45,
-    freq: int = 3000,               # loudest tone frequency
-    duty: float = 50.0,             # loudest duty cycle
+    beeps_per_group: int = 2,
+    group_pause: float = 0.6,
 ):
     """
-    Blocking alarm pattern using loud PWM tone.
+    Friendly medical-device alarm using blended tone/chirp pattern.
     """
     _init_gpio()
     start = time.time()
@@ -77,12 +92,12 @@ def alarm(
     try:
         while (time.time() - start) < duration:
             for _ in range(beeps_per_group):
-                _beep(beep_on_time, beep_off_time, freq=freq, duty=duty)
+                _chirp()
 
             time.sleep(group_pause)
 
     finally:
-        # ensure pin is silent
+        # ensure silence
         try:
             GPIO.output(PIEZO_PIN, GPIO.LOW)
         except:
@@ -104,6 +119,7 @@ def cleanup():
             GPIO.output(PIEZO_PIN, GPIO.LOW)
         except:
             pass
+        
         GPIO.cleanup(PIEZO_PIN)
         _initialized = False
 
