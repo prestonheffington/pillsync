@@ -143,7 +143,7 @@ class MotorArray:
         direction: int = 1,
         whole_steps: int = WHOLESTEPS_PER_CALL,
         delay: float = 0.003,
-        enforce_limits: bool = True,
+        enforce_limits: bool = False,   # PATCH: disable max call limits
     ):
         if motor_id not in self.motor_map:
             raise ValueError(f"Motor {motor_id} not available on detected hardware")
@@ -157,13 +157,12 @@ class MotorArray:
 
         # --------------------------------------------------------
         # PATCH: Reverse direction globally
-        # CW (old direction>=0) now becomes CCW
         # --------------------------------------------------------
         if direction >= 0:
-            idx = len(SEQ) - 1        # start at end
+            idx = len(SEQ) - 1
             step_fn = lambda i: (i - 1) % len(SEQ)
         else:
-            idx = 0                  # start at beginning
+            idx = 0
             step_fn = lambda i: (i + 1) % len(SEQ)
 
         try:
