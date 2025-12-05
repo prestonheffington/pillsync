@@ -58,21 +58,21 @@ def save_credentials(username, password):
         json.dump({"username": username, "password": hash_password(password)}, file)
 
 
-@app.before_request
-def enforce_session_timeout():
-    if "user" not in session:
-        return
-
-    now = time.time()
-    last = session.get("last_activity", now)
-    idle = now - last
-
-    if idle > IDLE_LIMIT:
-        app.logger.info(f"[SESSION] Timeout: idle={idle:.1f}s > {IDLE_LIMIT}s. Logging out.")
-        session.clear()
-        return redirect(url_for("login"))
-
-    session["last_activity"] = now
+#@app.before_request
+#def enforce_session_timeout():
+#    if "user" not in session:
+#        return
+#
+#    now = time.time()
+#    last = session.get("last_activity", now)
+#    idle = now - last
+#
+#    if idle > IDLE_LIMIT:
+#        app.logger.info(f"[SESSION] Timeout: idle={idle:.1f}s > {IDLE_LIMIT}s. Logging out.")
+#        session.clear()
+#        return redirect(url_for("login"))
+#
+#    session["last_activity"] = now
 
 
 
