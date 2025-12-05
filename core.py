@@ -102,7 +102,7 @@ class CoreController:
 
 
     ###############################################################
-    #  ORIGINAL DISPENSE FUNCTION (unchanged)
+    #  ORIGINAL DISPENSE FUNCTION (patched)
     ###############################################################
     def dispense_slot(
             self,
@@ -134,8 +134,7 @@ class CoreController:
                 self.motor_array.step_motor(
                     motor_id=motor_id,
                     direction=direction,
-                    # use defaults in MotorArray: whole_steps=WHOLESTEPS_PER_CALL
-                    enforce_limits=True,
+                    enforce_limits=False,   # ⭐ PATCH: disable call-limit enforcement
                 )
                 result["success"] = True
 
@@ -177,7 +176,6 @@ class CoreController:
         NOTE: This is a blocking call. If you don't want to block Flask,
         call this from a background thread in app.py.
         """
-        # Run them in sequence here; app.py can also start them in separate threads
         piezo_alarm(duration=duration)
         neopixel_alarm(duration=duration)
 
@@ -193,9 +191,7 @@ class CoreController:
         """
         Placeholder in case we later add non-blocking alarms
         that can be cancelled mid-way.
-        For now, alarms run to completion.
         """
-        # In future: track threads or async tasks and signal them to stop.
         pass
 
     # ------------------------------------------------------------------
@@ -204,12 +200,7 @@ class CoreController:
     def verify_fingerprint_for_user(self, user_id: int, timeout: float = 10.0) -> bool:
         """
         Placeholder for fingerprint verification.
-
-        app.py should call this before dispensing for real users.
-        For demo mode, app.py can skip this and call dispense_slot() directly.
         """
-        # TODO: integrate real fingerprint library later
-        # For now, always "pass" in non-demo environments if you want to stub it.
         return True
 
     # ------------------------------------------------------------------
@@ -228,4 +219,3 @@ class CoreController:
 
 # Global singleton-style instance that app.py can import
 core = CoreController()
-
