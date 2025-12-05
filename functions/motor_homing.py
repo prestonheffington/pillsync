@@ -8,13 +8,10 @@ Homing behavior (software-based):
 - Homing = rotate 7 × 320 whole steps in a fixed direction,
   then reset the call counter for that motor.
 
-This does NOT use a physical home switch; it assumes
-mechanical alignment has been done previously and
-one full revolution returns to the logical "home" slot.
-
-PATCH:
+PATCHES:
 - Default homing direction changed to +1 (CW),
   because global motor direction in MotorArray was reversed.
+- Home only motors 1–3 (motors 4–6 disabled for demo day).
 """
 
 from .motor_array import WHOLESTEPS_PER_CALL
@@ -30,15 +27,7 @@ def home_motor(
     direction: int = +1,   # PATCH: home now moves CW by default
     delay: float = 0.003,
 ) -> bool:
-    """
-    Home a single motor by rotating it 7 × 320 whole steps.
-
-    :param motor_array: an instance of MotorArray to operate on
-    :param motor_id: Motor number (1–6)
-    :param direction: +1 or -1, direction toward "home"
-    :param delay: delay between half-steps (seconds)
-    :return: True if homing completed without error
-    """
+    """Home a single motor by rotating it 7 × 320 whole steps."""
 
     # Ignore per-motor call limits during homing
     motor_array.step_motor(
@@ -49,7 +38,6 @@ def home_motor(
         enforce_limits=False,
     )
 
-    # After a successful homing move, reset the call counter
     motor_array.reset_call_count(motor_id)
     return True
 
@@ -60,10 +48,12 @@ def home_all_motors(
     delay: float = 0.003,
 ) -> dict:
     """
-    Home motors 1–6 sequentially.
+    Home motors 1–3 only.
+    Motors 4–6 are disabled for demo day.
     """
     results = {}
-    for mid in range(1, 7):
+
+    for mid in [1, 2, 3]:   # PATCH: demo-safe motor list
         ok = home_motor(
             motor_array=motor_array,
             motor_id=mid,
@@ -71,6 +61,12 @@ def home_all_motors(
             delay=delay,
         )
         results[mid] = ok
+
+    # Optional: mark disabled motors in results
+    # results[4] = "disabled"
+    # results[5] = "disabled"
+    # results[6] = "disabled"
+
     return results
 
 
